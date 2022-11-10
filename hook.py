@@ -17,8 +17,8 @@ def _set_module(model, submodule_key, module):
 
 
 def hook(model):
-    model.num_classes
     for name, module in model.named_modules():
+        # print(name)
         if type(module) != nn.Sequential:
             if isinstance(module, nn.Dropout):
                 dropout = Dropout(p=module.p, inplace=module.inplace)

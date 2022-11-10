@@ -1,12 +1,101 @@
-#include<stdio.h>
-#include<math.h>
-#include<stdlib.h>
-#include<vector>
+#include <cstring>
+#include <stdarg.h>
+#include <stdio.h> /* vsnprintf */
+#include <string.h>
+#include <algorithm>
+#include <vector>
+#include <math.h>
 using namespace std;
-double alpha=0;
-int indexs[64+5]={11,28,5,45,39,6,23,1,37,32,12,4,24,12,58,12,61,2,29,60,5,44,6,36,20,27,13,16,39,61,49,51,25,54,32,0,60,55,1,33,23,14,37,47,26,31,60,24,34,25,20,39,5,26,11,25,53,25,42,28,22,27,15,47};
-
-void d_softmax(double *y, double *result, int len,  int dim, int shape[]){
+extern "C"{
+double alpha = 1;
+int indexs[8+5]={1,11,8,9,4,1,4,2};
+void softmax(double *input, int shape[], int dim){
+    int N, C, H, W;
+    if(dim==-1){
+        dim=2;
+    }
+    N=shape[0];C=shape[1];H=shape[2];W=shape[3];
+    int k1=W,k2=H*W,k3=C*H*W;
+    int len = N * C * H * W;
+    double out[N][C][H][W];
+    int idx_n, idx_c, idx_h, idx_w;
+    // if (dim==0){
+    //     for (idx_h = 0;idx_h< H; idx_h++){
+    //             for(idx_w=0;idx_w<W;idx_w++){
+    //                 for(idx_c=0;idx_c<C;idx_c++){
+    //                     double sum=0;
+    //                     for(idx_n=0;idx_n<N;idx_n++){
+    //                         sum += exp(input[idx_n*k3 + idx_c*k2 + idx_h*k1 + idx_w]);
+    //                     }
+    //                     for(idx_n=0;idx_n<N;idx_n++){
+    //                         out[idx_n][idx_c][idx_h][idx_w]=exp(input[idx_n*k3 + idx_c*k2 + idx_h*k1 + idx_w]) / sum;
+    //                     }
+    //                 }
+                        
+    //             }
+    //         }
+    // }
+    if (dim==0){
+        for(idx_n=0;idx_n<N;idx_n++){
+            for (idx_h = 0;idx_h< H; idx_h++){
+                for(idx_w=0;idx_w<W;idx_w++){
+                    double sum=0;
+                    for(idx_c=0;idx_c<C;idx_c++){
+                        sum += exp(input[idx_n*k3 + idx_c*k2 + idx_h*k1 + idx_w]);
+                    }
+                    for(idx_c=0;idx_c<C;idx_c++){
+                        out[idx_n][idx_c][idx_h][idx_w]=exp(input[idx_n*k3 + idx_c*k2 + idx_h*k1 + idx_w]) / sum;
+                    }
+                }
+            }
+            
+        }
+    }
+    else if (dim==1){
+        for(idx_n=0;idx_n<N;idx_n++){
+            for (idx_c = 0;idx_c< C; idx_c++){
+                for(idx_w=0;idx_w<W;idx_w++){
+                    double sum=0;
+                    for(idx_h=0;idx_h<H;idx_h++){
+                        sum += exp(input[idx_n*k3 + idx_c*k2 + idx_h*k1 + idx_w]);
+                    }
+                    for(idx_h=0;idx_h<H;idx_h++){
+                        out[idx_n][idx_c][idx_h][idx_w] = exp(input[idx_n*k3 + idx_c*k2 + idx_h*k1 + idx_w] )/ sum;
+                    }
+                }
+            }
+            
+        }
+    }
+    else if (dim==2){
+        for(idx_n=0;idx_n<N;idx_n++){
+            for (idx_c = 0;idx_c< C; idx_c++){
+                for(idx_h=0;idx_h<H;idx_h++){
+                    double sum=0;
+                    for(idx_w=0;idx_w<W;idx_w++){
+                        sum += exp(input[idx_n*k3 + idx_c*k2 + idx_h*k1 + idx_w]);
+                    }
+                    for(idx_w=0;idx_w<W;idx_w++){
+                        out[idx_n][idx_c][idx_h][idx_w] = exp(input[idx_n*k3 + idx_c*k2 + idx_h*k1 + idx_w] )/ sum;
+                    }
+                }
+            }
+            
+        }
+    }
+    int idx=0;
+    for(int i=0;i<N;i++){
+        for(int j=0;j<C;j++){
+            for(int k=0;k<H;k++){
+                for(int l=0;l<W;l++){
+                    input[idx++]=out[i][j][k][l];
+                }
+            }
+        }
+    }
+    return;
+}
+void d_softmax(double *y, double *result, int len, int len_out, int dim, int shape[]){
     //if dim = 0
     //then size_result = C*H*W*(N*N)(len_out)
     //size_y:len=N*C*H*W
@@ -19,40 +108,42 @@ void d_softmax(double *y, double *result, int len,  int dim, int shape[]){
     int k1=W,k2=H*W,k3=C*H*W;
     int idx_c, idx_n, idx_h, idx_w, i, j;
     int glob_idx=0;
-    
-    if (dim==0){
-        double *tmp = (double*)malloc(sizeof(double) * N * N);
-        for(idx_c=0;idx_c<C;idx_c++){
-            for(idx_h=0;idx_h<H;idx_h++){
-                for(idx_w=0;idx_w<W;idx_w++){
-
-                    for(idx_n=0;idx_n<N;idx_n++){
-                        tmp[idx_n*N + idx_n] = y[idx_n*k3+idx_c*k2+idx_h*k1+idx_w];
-                        //diag[Y]
-                    }
-                    for(i=0;i<N;i++){
-                        for(j=0;j<N;j++){
-                            tmp[i*N + j] -= y[i*k3+idx_c*k2+idx_h*k1+idx_w]*y[j*k3+idx_c*k2+idx_h*k1+idx_w];
-                            //DxY = diag(Y) - Y'*Y
-                        }
-                    }
-                    //copy to result
-                    for(i=0;i<N*N;i++){
-                        result[glob_idx++] = tmp[i];
-                        
-                    }
-                    //clear tmp
-                    for(i=0;i<N*N;i++){
-                        tmp[i] = 0;
-                    }
-
-                }
-            }
-        }
-        free(tmp);
+    if(dim==-1){
+        dim=2;
     }
+    // if (dim==0){
+    //     double *tmp = (double*)malloc(sizeof(double) * N * N);
+    //     for(idx_c=0;idx_c<C;idx_c++){
+    //         for(idx_h=0;idx_h<H;idx_h++){
+    //             for(idx_w=0;idx_w<W;idx_w++){
 
-    if (dim==1){
+    //                 for(idx_n=0;idx_n<N;idx_n++){
+    //                     tmp[idx_n*N + idx_n] = y[idx_n*k3+idx_c*k2+idx_h*k1+idx_w];
+    //                     //diag[Y]
+    //                 }
+    //                 for(i=0;i<N;i++){
+    //                     for(j=0;j<N;j++){
+    //                         tmp[i*N + j] -= y[i*k3+idx_c*k2+idx_h*k1+idx_w]*y[j*k3+idx_c*k2+idx_h*k1+idx_w];
+    //                         //DxY = diag(Y) - Y'*Y
+    //                     }
+    //                 }
+    //                 //copy to result
+    //                 for(i=0;i<N*N;i++){
+    //                     result[glob_idx++] = tmp[i];
+                        
+    //                 }
+    //                 //clear tmp
+    //                 for(i=0;i<N*N;i++){
+    //                     tmp[i] = 0;
+    //                 }
+
+    //             }
+    //         }
+    //     }
+    //     free(tmp);
+    // }
+
+    if (dim==0){
         double *tmp = (double*)malloc(sizeof(double) * C * C);
         for(idx_n=0;idx_n<N;idx_n++){
             for(idx_h=0;idx_h<H;idx_h++){
@@ -83,7 +174,7 @@ void d_softmax(double *y, double *result, int len,  int dim, int shape[]){
         free(tmp);
     }
 
-    if (dim==2){
+    if (dim==1){
         double *tmp = (double*)malloc(sizeof(double) * H * H);
         for(idx_n=0;idx_n<N;idx_n++){
             for(idx_c=0;idx_c<C;idx_c++){
@@ -114,7 +205,7 @@ void d_softmax(double *y, double *result, int len,  int dim, int shape[]){
         free(tmp);
     }
 
-    if (dim==3){
+    if (dim==2){
         double *tmp = (double*)malloc(sizeof(double) * W * W);
         for(idx_n=0;idx_n<N;idx_n++){
             for(idx_c=0;idx_c<C;idx_c++){
@@ -127,7 +218,7 @@ void d_softmax(double *y, double *result, int len,  int dim, int shape[]){
                     for(i=0;i<W;i++){
                         for(j=0;j<W;j++){
                             tmp[i*W+j] -= y[idx_n*k3+idx_c*k2+idx_h*k1+i]*y[idx_n*k3+idx_c*k2+idx_h*k1+j];
-                            //DxY = diag(Y) - Y'*Y
+                            //dy/dx = diag(Y) - Y'*Y
                         }
                     }
                     //copy to result
@@ -149,17 +240,82 @@ void d_softmax(double *y, double *result, int len,  int dim, int shape[]){
     return;
 
 }
-
-void d_relu(double *y, int len, double *result){
+void d_softmax_easy(double *dy, double *y, double *result, int len, int dim, int shape[], double *delta){
+    //dy:[N, classes] = d(loss)/dy
+    //y:[N, classes] = softmax(x)
+    //decrypt y first:
+    //len = N * classes
+    //result: Size of len
+    double * key = (double *)malloc(len*sizeof(double));
+    int i, j;
+    memset(key,0,sizeof(double)*len);
+    for(i=0;i<8;i++){
+        for(j=0;j<len;j++){
+            key[j]+=delta[indexs[i]*len+j];
+        }
+    }
+    //key is f(r) now
+    for(j=0;j<len;j++){
+        y[j]=y[j]-key[j];
+    }
+    for(j=0;j<len;j++){
+        dy[j] = dy[j] / alpha;
+    }
+    int global_idx = 0;
+    int N=shape[0], C=shape[1];
+    for(int idx_n=0;idx_n<N;idx_n++){
+        double *tmp = (double*)malloc(sizeof(double) * C * C);
+        memset(tmp, 0, sizeof(double)*C*C);
+        for(int idx_c=0;idx_c<C;idx_c++){
+            tmp[idx_c*C+idx_c] = y[idx_n*N+idx_c]; // diag(y)
+        }
+        for(int i=0;i<C;i++){
+            for(int j=0;j<C;j++){
+                tmp[i*C+j] -= y[idx_n*N+i] * y[idx_n*N+j]; // dy/dx=diag(y)-y'.*y
+            }
+        }
+        double temp=0;
+        for(int i=0;i<C;i++){
+            for(int j=0;j<C;j++){
+                temp += dy[idx_n*C+j] * tmp[j*C+i]; // d(loss)/dx=d(loss)/dy .* dy/dx
+            }
+            result[global_idx++] = temp * alpha;
+            temp=0;
+        }
+    }
+    free(key);
+    return;
+}
+void d_relu(double *dy, double*y, int len, double *result, double *delta2){
     //y, result: both sizes are len
+    //dy=d(loss)/dy
+    double *key = (double *)malloc(len*sizeof(double));
+    int i, j;
+    memset(key,0,sizeof(double)*len);
+    for(i=0;i<8;i++){
+        for(j=0;j<len;j++){
+            key[j]+=delta2[indexs[i]*len+j];
+        }
+    }
+    for(i=0;i<len;i++){
+        dy[i] /= alpha;
+    }
+    //key is f(r) now
+    for(j=0;j<len;j++){
+        y[j]=y[j]-key[j];
+    }
     for(int i=0;i<len;i++){
         if(y[i]>0){
-            result[i] = 1;
+            result[i] = dy[i] * alpha;
         }
         else{
             result[i] = 0;
         }
     }
+    // printf("%lf", alpha);
+    free(key);
+    return;
+    
 }
 
 void d_sigmoid(double *y, int len, double *result){
@@ -168,18 +324,221 @@ void d_sigmoid(double *y, int len, double *result){
     }
     return;
 }
-extern "C"
-{
-void sigmoid(double *y, int len, double *result)
-{
-return d_sigmoid(y, len, result);
+
+void d_dropout(double *dy, double *y, int len, double p, int shape[], double *result, double *delta){
+    double * key = (double *)malloc(len*sizeof(double));
+    int i, j;
+    memset(key,0,sizeof(double)*len);
+    for(i=0;i<8;i++){
+        for(j=0;j<len;j++){
+            key[j]+=delta[indexs[i]*len+j];
+        }
+    }
+    //key is f(r) now
+    for(j=0;j<len;j++){
+        y[j]=y[j]-key[j];
+        dy[i] /= alpha;
+    }
+    int N, C, H, W;
+    N = shape[0];
+    C = shape[1];
+    H = shape[2];
+    W = shape[3];
+    int k1=W,k2=H*W,k3=C*H*W;
+    for(int idx_n=0;idx_n<N;idx_n++){
+        for(int idx_c=0;idx_c<C;idx_c++){
+            double eps = 1e-6;
+            double test_eps1 = fabs(y[idx_n*k3+idx_c*k2]-0);
+            double test_eps2 = fabs(y[idx_n*k3+idx_c*k2+1]-0);
+            double test_eps3 = fabs(y[idx_n*k3+idx_c*k2+2]-0);
+            if (test_eps1 < eps && test_eps2 < eps && test_eps3 < eps){
+                for(int idx_h=0;idx_h<H;idx_h++){
+                    for (int idx_w = 0; idx_w < W; idx_w++){
+                        result[idx_n*k3+idx_c*k2+idx_h*k1+idx_w]=0;
+                    }
+                }
+            }
+            else{
+                for(int idx_h=0;idx_h<H;idx_h++){
+                    for (int idx_w = 0; idx_w < W; idx_w++){
+                        result[idx_n*k3+idx_c*k2+idx_h*k1+idx_w]=(double)1 / (1-p) * dy[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] * alpha;
+                    }
+                }
+            }
+        }
+    }
+    free(key);
+    return;
 }
-void relu(double *y, int len, double *result)
-{
-return d_relu(y, len, result);
+void softmax_e(double *input, int shape[], int dim){
+    dim = 1;
+    int N=shape[0], C=shape[1];
+    int k2=C;
+    double sum=0;
+    double max=0;
+    for(int idx_n=0;idx_n<N;idx_n++){
+        sum = 0;
+        max = -1e7;
+        for(int idx_c=0;idx_c<C;idx_c++){
+            max = input[idx_n*k2 + idx_c] > max? input[idx_n*k2 + idx_c]: max;
+        }
+        for(int idx_c=0;idx_c<C;idx_c++){
+            input[idx_n*k2 + idx_c] -= max;
+        }
+        for(int idx_c=0;idx_c<C;idx_c++){
+            sum += exp(input[idx_n*k2 + idx_c]);
+        }
+        for(int idx_c=0;idx_c<C;idx_c++){
+            input[idx_n*k2 + idx_c] = exp(input[idx_n*k2 + idx_c]) / sum;
+        }
+    }
+    return;
 }
-void softmax(double *y, double *result, int len,  int dim, int shape[])
-{
-return d_softmax(y, result, len, dim, shape);
+void d_crossEntropy(double *y_true, double *y_pred, int shape[], int len, double *result, int classes){
+    double tmp=0;
+    softmax_e(y_pred, shape, -1);
+    int mean = len / classes; 
+    for(int i=0;i<len;i++){
+        result[i] = (y_pred[i] - y_true[i]) / (double) mean; 
+    }
+    return;
+}
+
+void gen_alpha(double *delta){
+    for(int i=0;i<64;i++){
+        alpha += delta[indexs[i]];
+    }
+    return;
+}
+void d_max_pool_2d(double *dy, double *result, int len_y, int len_x, int argmax[]){
+    //len_y是经过正向传播后的大小=N*C*H_out*W_out
+    //len_x=N*C*H*W
+    //y:len_y
+    //result:len_x
+
+    int N,C,H,W;
+    for(int i=0;i<len_x;i++)
+        result[i] = 0;
+    for(int i=0;i<len_y;i++){
+        dy[i] = dy[i] / alpha;
+    }
+    for(int i=0;i<len_y;i++){
+        result[argmax[i]] = dy[i] * alpha;
+    }
+    return;
+}
+void encrypt(double *dy, double *result, int len){
+    /*
+        int indexs[64];
+        sgx_status_t SGXAPI sgx_read_rand(indexs, 64);
+    */
+    //delta[256] double
+    for(int i=0;i<len;i++){
+        result[i] = dy[i] * alpha;
+    }
+    return;
+}
+
+void decrypt_conv(double *dw, double *delta, double *dy, int len_x, int shape_w[], int H_in, int H_out, int Batch_size){
+    /*
+        gout = d(loss) / dy y = w.*x
+        if y:[*,r,p], X[*,q,p]
+        len=N*C*q*p length of x
+        shape = shape of gout[N,C,r,p]
+    */
+    int i,j;
+    int kernel_num = shape_w[0], depth=shape_w[1], kernel_size = shape_w[2], N = Batch_size;
+    double *key = (double*)malloc(sizeof(double)*len_x);
+    memset(key,0,sizeof(double)*len_x);
+    for(i=0;i<8;i++){
+        for(j=0;j<len_x;j++){
+            key[j]+=delta[indexs[i]*len_x+j];
+        }
+    }
+    double grad_tmp = 0;
+    double *weight = (double*)malloc(sizeof(double)*kernel_num*depth*kernel_size*kernel_size);
+    int k3=kernel_num*H_out*H_out, k2=H_out*H_out, k1=H_out;
+    int y3=depth*H_in*H_in, y2=H_in*H_in, y1=H_in;
+    int x3=depth*kernel_size*kernel_size, x2=kernel_size*kernel_size, x1=kernel_size;
+    memset(weight,0,sizeof(double)*kernel_num*depth*kernel_size*kernel_size);
+    for(int idx_n=0;idx_n<N;idx_n++){
+        for(int idx_k=0;idx_k<kernel_num;idx_k++){
+            for (int idx_d = 0; idx_d < depth; idx_d++){
+                for (int idx_h = 0; idx_h < kernel_size; idx_h++){
+                    for (int idx_w = 0; idx_w < kernel_size; idx_w++){
+                        grad_tmp = 0;
+                        for (i = 0; i < H_out; i++){
+                            for (j = 0; j < H_out; j++){
+                                grad_tmp += dy[idx_n*k3+idx_k*k2+i*k1+j] * key[idx_n*y3+idx_d*y2+(i+idx_h)*y1+(j+idx_w)];
+                            }
+                            
+                        }
+                        weight[idx_k*x3+idx_d*x2+idx_h*x1+idx_w] += grad_tmp / (double)N;
+                    }
+
+                }
+                
+            }
+            
+        }
+    }
+    for(int idx_n=0;idx_n<N;idx_n++){
+        for(int idx_k=0;idx_k<kernel_num;idx_k++){
+            for (int idx_d = 0; idx_d < depth; idx_d++){
+                for (int idx_h = 0; idx_h < kernel_size; idx_h++){
+                    for (int idx_w = 0; idx_w < kernel_size; idx_w++){
+                        dw[idx_k*x3+idx_d*x2+idx_h*x1+idx_w] -= weight[idx_k*x3+idx_d*x2+idx_h*x1+idx_w];
+                        dw[idx_k*x3+idx_d*x2+idx_h*x1+idx_w] /= alpha;
+                    }
+
+                }
+                
+            }
+            
+        }
+    }
+    free(key);
+    free(weight);
+    return;
+}
+
+void decrypt_linear(double *delta, double *gout, double *dw, int len, int shape[]){
+    /*
+        gout = d(loss) / dy y = x.*w
+        len=N*d length of x
+        shape = shape of gout[N, c] c: num_of_classes
+    */
+    int i,j;
+    int N = shape[0], C = shape[1];
+    int D = len / N;
+    double *key = (double*)malloc(sizeof(double)*len);
+    memset(key,0,sizeof(double)*len);
+    for(i=0;i<8;i++){
+        for(j=0;j<len;j++){
+            key[j]+=delta[indexs[i]*len+j];
+        }
+    }
+    // vector<vector<vector<vector<float>>>> noise(N, vector<vector<vector<float>>>(C, vector<vector<float>>(H, vector<float>(W,0))));
+    double *w_update = (double*)malloc(sizeof(double)*D*C);
+    int k1,k2,k3;
+    double tmp;
+    for(i=0;i<D;i++){
+        for(j=0;j<C;j++){
+            tmp = 0;
+            for(int k=0;k<N;k++){
+                tmp += key[k*D + i] * gout[k*C + j];
+            }
+            w_update[i*C+j] = tmp;
+        }
+    }
+    for(i=0;i<D;i++){
+        for(j=0;j<C;j++){
+            dw[i*C+j] -= w_update[i*C+j];
+            dw[i*C+j] /= alpha;
+        }
+    }
+    free(key);
+    free(w_update);
+    return;
 }
 }

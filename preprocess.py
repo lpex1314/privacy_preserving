@@ -12,4 +12,5 @@ def preprocess(x):
 
 
 def getdll():
-    return CDLL('dll/forward.so'), CDLL('dll/backward.so')
+    return cdll.LoadLibrary('dll/forward.so'), cdll.LoadLibrary('dll/backward.so')
+
