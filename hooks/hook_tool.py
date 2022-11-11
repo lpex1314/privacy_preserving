@@ -54,6 +54,9 @@ def backward_hook2(module, gin, gout):
 
 
 def dec_linear(dw, db, dx, gout):
+    print("***********linear_backward**********")
+    print(dx.max())
+    print(dx.min())
     grad_out = gout[0]
     a = 1
     # print("a:" + str(a))
@@ -85,6 +88,9 @@ def dec_linear(dw, db, dx, gout):
     return new_db, new_dw, new_dx
 
 def dec_conv(dw, db, dx, gout):
+    print("***********conv_backward**********")
+    print(dx.max())
+    print(dx.min())
     grad_out = gout[0]
     a = 1
     # print("a:" + str(a))
@@ -99,11 +105,12 @@ def dec_conv(dw, db, dx, gout):
     shape_del, delta_c, len_delta, float_array_delta = preprocess(delta)
     shape_gout, gout_c, len_gout, float_array_gout = preprocess(grad_out)
     shape_dw, dw_c, _, float_array_w = preprocess(dw)
-    print('dw.shape:{}'.format(dw.shape))
+    # print('dw.shape:{}'.format(dw.shape))
     # print('dx.shape:{}'.format(dx.shape))
-    print('dy.shape:{}'.format(grad_out.shape))
+    # print('dy.shape:{}'.format(grad_out.shape))
     shape_x, _, len_x, _ = preprocess(dx)
-    print('len_x:{}'.format(len_x))
+    
+    # print('len_x:{}'.format(len_x))
     batch_size = shape_gout[0]
     h_in = shape_x[2]
     h_out = shape_gout[2]

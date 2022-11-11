@@ -29,8 +29,8 @@ class ReLUFunction(torch.autograd.Function):
     def backward(ctx, gradOutput):
         print('**********relu_backward***********')
         # print(gradOutput)
-        print(gradOutput.max() )
-        print(gradOutput.min() )
+        print(gradOutput.max())
+        print(gradOutput.min())
         y, delta1, delta2 = ctx.saved_tensors  # y
         shape_y, y, len_y, double_array_y = preprocess(y)  # y
         shape_dy, dy, len_dy, double_array_dy = preprocess(gradOutput)  # dy
@@ -42,6 +42,8 @@ class ReLUFunction(torch.autograd.Function):
         output = np.frombuffer(output, dtype=np.double)
         output = torch.tensor(output, dtype=torch.float)
         output = output.reshape(*shape_dy)
+        print(output.max())
+        print(output.min())
         return output, None, None
 
 

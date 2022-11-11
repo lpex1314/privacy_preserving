@@ -74,6 +74,8 @@ class DropoutFunction(torch.autograd.Function):
         gradout = torch.tensor(gradout, dtype=torch.float)
         gradout = gradout.reshape(*shape_out)
         # need gradOutput * gradout ?
+        print(gradout.max())
+        print(gradout.min())
         return gradout, None, None, None
 
 

@@ -100,6 +100,8 @@ class MaxPool2dFunction(torch.autograd.Function):
         out = np.frombuffer(res, dtype=np.double)
         out = torch.tensor(out, dtype=torch.float)
         out = out.reshape(*shape_x)
+        print(out.max())
+        print(out.min())
         # print('gradOutput.shape:{}'.format(gradOutput.shape))
         return out, None, None, None, None, None
 

@@ -107,18 +107,18 @@ class Net(nn.Module):
         H_out = 1 + (H - self.kernel_size) // self.stride
         W_out = 1 + (W - self.kernel_size) // self.stride
         shape_pool = torch.Size([N, C, H_out, W_out])
-        self.delta_1 = torch.rand(self.N_ks, *shape_pool, requires_grad=False) * 0.01
+        self.delta_1 = torch.rand(self.N_ks, *shape_pool, requires_grad=False) 
         # encipher.deltas['delta_maxpool_1'] = self.delta_1
         x = self.maxpool2d(x, r, self.delta_1)
         # print(x.requires_grad)
         # relu
-        self.delta_2 = torch.rand(self.N_ks, *x.shape, requires_grad=False) * 0.01
+        self.delta_2 = torch.rand(self.N_ks, *x.shape, requires_grad=False) 
         x = self.relu(x, self.delta_1, self.delta_2)
         #  conv2
         encipher.deltas.append(self.delta_2)
         x, r = self.conv2(x), linearF_(self.delta_2.shape[0], self.delta_2, self.conv2)
         #  dropout
-        self.delta_3 = torch.rand(self.N_ks, *x.shape, requires_grad=False) * 0.01
+        self.delta_3 = torch.rand(self.N_ks, *x.shape, requires_grad=False) 
         # encipher.deltas['dropout'] = self.delta_3
         x = self.dropout(x, r, self.delta_3)
         #  maxpool2d
@@ -126,11 +126,11 @@ class Net(nn.Module):
         H_out = 1 + (H - self.kernel_size) // self.stride
         W_out = 1 + (W - self.kernel_size) // self.stride
         shape_pool = torch.Size([N, C, H_out, W_out])
-        self.delta_o = torch.rand(self.N_ks, *shape_pool, requires_grad=False) * 0.01
+        self.delta_o = torch.rand(self.N_ks, *shape_pool, requires_grad=False) 
         # encipher.deltas['maxpool_2'] = self.delta_o
         x = self.maxpool2d(x, self.delta_3, self.delta_o)
         #  relu
-        self.delta_4 = torch.rand(self.N_ks, *x.shape, requires_grad=False) * 0.01
+        self.delta_4 = torch.rand(self.N_ks, *x.shape, requires_grad=False) 
         x = self.relu(x, self.delta_o, self.delta_4)
         x = x.view(-1, 320)
         self.delta_4 = self.delta_4.view(self.N_ks, -1, 320)
@@ -140,11 +140,11 @@ class Net(nn.Module):
         encipher.deltas.append(self.delta_4)
         x, r = self.fc1(x), linearF_(self.delta_4.shape[0], self.delta_4, self.fc1)
         #  relu
-        self.delta_5 = torch.rand(self.N_ks, *x.shape, requires_grad=False) * 0.01
+        self.delta_5 = torch.rand(self.N_ks, *x.shape, requires_grad=False) 
         x = self.relu(x, r, self.delta_5)
         # print(x.requires_grad)
         #  softmax
-        self.delta_6 = torch.rand(self.N_ks, *x.shape, requires_grad=False) * 0.01
+        self.delta_6 = torch.rand(self.N_ks, *x.shape, requires_grad=False) 
         x = self.softmax(x, self.delta_5, self.delta_6)
         # decrypt
         # print(x.requires_grad)
@@ -172,7 +172,7 @@ def train(epoch):
     for batch_idx, (data, target) in enumerate(train_loader):
         target = target.to(device)
         optimizer.zero_grad()
-        delta_init = torch.rand(16, *data.shape, requires_grad=False) * 0.01
+        delta_init = torch.rand(16, *data.shape, requires_grad=False) 
         encipher.deltas.append(delta_init)
         # print(delta_init.max())
         # print(data.max())

@@ -65,6 +65,8 @@ class SoftmaxFunction(torch.autograd.Function):
         output = np.frombuffer(result_c, dtype=np.double)
         output = torch.tensor(output, dtype=torch.float)
         output = output.reshape(*shape_dy)
+        print(output.max())
+        print(output.min())
         return output, None, None, None
 
 

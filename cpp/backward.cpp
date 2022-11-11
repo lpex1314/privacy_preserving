@@ -263,15 +263,15 @@ void d_softmax_easy(double *dy, double *y, double *result, int len, int dim, int
     }
     int global_idx = 0;
     int N=shape[0], C=shape[1];
+    double *tmp = (double*)malloc(sizeof(double) * C * C);
     for(int idx_n=0;idx_n<N;idx_n++){
-        double *tmp = (double*)malloc(sizeof(double) * C * C);
         memset(tmp, 0, sizeof(double)*C*C);
         for(int idx_c=0;idx_c<C;idx_c++){
-            tmp[idx_c*C+idx_c] = y[idx_n*N+idx_c]; // diag(y)
+            tmp[idx_c*C+idx_c] = y[idx_n*C+idx_c]; // diag(y)
         }
         for(int i=0;i<C;i++){
             for(int j=0;j<C;j++){
-                tmp[i*C+j] -= y[idx_n*N+i] * y[idx_n*N+j]; // dy/dx=diag(y)-y'.*y
+                tmp[i*C+j] -= y[idx_n*C+i] * y[idx_n*C+j]; // dy/dx=diag(y)-y'.*y
             }
         }
         double temp=0;
@@ -394,7 +394,19 @@ void softmax_e(double *input, int shape[], int dim){
     }
     return;
 }
-void d_crossEntropy(double *y_true, double *y_pred, int shape[], int len, double *result, int classes){
+void d_crossEntropy(double *y_true, double *y_pred, int shape[], int len, double *result, int classes, double *delta1){
+    double * key = (double *)malloc(len*sizeof(double));
+    int i, j;
+    memset(key,0,sizeof(double)*len);
+    for(i=0;i<8;i++){
+        for(j=0;j<len;j++){
+            key[j]+=delta1[indexs[i]*len+j];
+        }
+    }
+    //key is f(r) now
+    for(j=0;j<len;j++){
+        y_pred[j]=y_pred[j]-key[j];
+    }
     double tmp=0;
     softmax_e(y_pred, shape, -1);
     int mean = len / classes; 
