@@ -283,6 +283,7 @@ void d_softmax_easy(double *dy, double *y, double *result, int len, int dim, int
             temp=0;
         }
     }
+    free(tmp);
     free(key);
     return;
 }
@@ -408,10 +409,10 @@ void d_crossEntropy(double *y_true, double *y_pred, int shape[], int len, double
         y_pred[j]=y_pred[j]-key[j];
     }
     double tmp=0;
-    softmax_e(y_pred, shape, -1);
+    // softmax_e(y_pred, shape, -1);
     int mean = len / classes; 
     for(int i=0;i<len;i++){
-        result[i] = (y_pred[i] - y_true[i]) / (double) mean; 
+        result[i] = (y_pred[i] - y_true[i]) / mean; 
     }
     return;
 }

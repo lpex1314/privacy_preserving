@@ -40,8 +40,8 @@ class SoftmaxFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, gradOutput):
         print('**********softmax_backward***********')
-        print(gradOutput.max())
-        print(gradOutput.min())
+        # print(gradOutput.max())
+        # print(gradOutput.min())
         dim = ctx.dim
         out, delta1, delta2 = ctx.saved_tensors
         shape_del2, delta2_c, len_del, double_array_del2 = preprocess(delta2)
@@ -65,8 +65,8 @@ class SoftmaxFunction(torch.autograd.Function):
         output = np.frombuffer(result_c, dtype=np.double)
         output = torch.tensor(output, dtype=torch.float)
         output = output.reshape(*shape_dy)
-        print(output.max())
-        print(output.min())
+        # print(output.max())
+        # print(output.min())
         return output, None, None, None
 
 

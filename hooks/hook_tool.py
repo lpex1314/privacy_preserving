@@ -55,8 +55,8 @@ def backward_hook2(module, gin, gout):
 
 def dec_linear(dw, db, dx, gout):
     print("***********linear_backward**********")
-    print(dx.max())
-    print(dx.min())
+    # print(dx.max())
+    # print(dx.min())
     grad_out = gout[0]
     a = 1
     # print("a:" + str(a))
@@ -66,6 +66,7 @@ def dec_linear(dw, db, dx, gout):
     if dx is not None:
         new_dx = dx 
     delta = encipher.get_delta()
+    # print('n:{}'.format(encipher.n))
     shape_del, delta_c, len_delta, float_array_delta = preprocess(delta)
     shape_gout, gout_c, len_gout, float_array_gout = preprocess(grad_out)
     int_array_shape = c_int * 4
@@ -84,13 +85,12 @@ def dec_linear(dw, db, dx, gout):
     new_dw = new_dw.reshape(*shape_dw)
     # print("tmp:"+str(tmp.flatten()[0:10]))
     # print("pre_dw:" + str(dw.flatten()[0:10]))
-    # new_dw = (dw - torch.sum(tmp[key], dim=0).to(device).T)
     return new_db, new_dw, new_dx
 
 def dec_conv(dw, db, dx, gout):
     print("***********conv_backward**********")
-    print(dx.max())
-    print(dx.min())
+    # print(dx.max())
+    # print(dx.min())
     grad_out = gout[0]
     a = 1
     # print("a:" + str(a))
@@ -100,7 +100,7 @@ def dec_conv(dw, db, dx, gout):
     if dx is not None:
         new_dx = dx 
     delta = encipher.get_delta()
-    
+    # print('n:{}'.format(encipher.n))
     
     shape_del, delta_c, len_delta, float_array_delta = preprocess(delta)
     shape_gout, gout_c, len_gout, float_array_gout = preprocess(grad_out)

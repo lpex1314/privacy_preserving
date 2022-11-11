@@ -81,8 +81,8 @@ class MaxPool2dFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, gradOutput):
         print('**********maxpool_backward***********')
-        print(gradOutput.max())
-        print(gradOutput.min())
+        # print(gradOutput.max())
+        # print(gradOutput.min())
         input, output, maxarg, delta1, delta2 = ctx.saved_tensors
         H_out, W_out, kernel_size, stride = ctx.H_out, ctx.W_out, ctx.kernel_size, ctx.stride
         shape_y, dy, len_y, float_array_y = preprocess(gradOutput)
@@ -100,8 +100,8 @@ class MaxPool2dFunction(torch.autograd.Function):
         out = np.frombuffer(res, dtype=np.double)
         out = torch.tensor(out, dtype=torch.float)
         out = out.reshape(*shape_x)
-        print(out.max())
-        print(out.min())
+        # print(out.max())
+        # print(out.min())
         # print('gradOutput.shape:{}'.format(gradOutput.shape))
         return out, None, None, None, None, None
 

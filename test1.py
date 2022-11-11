@@ -78,8 +78,8 @@ class Net(nn.Module):
         self.conv1 = nn.Conv2d(1, 10, kernel_size=5, bias=False)
         self.conv2 = nn.Conv2d(10, 20, kernel_size=5, bias=False)
         self.dropout = Dropout()
-        self.fc1 = nn.Linear(320, 10, bias=False)
-        # self.fc2 = nn.Linear(50, 10)
+        self.fc1 = nn.Linear(320, 50, bias=False)
+        self.fc2 = nn.Linear(50, 10, bias=False)
         self.relu = ReLU()
         self.maxpool2d = MaxPool2d(self.kernel_size, self.stride)
         self.softmax = Softmax(dim=1)
@@ -97,7 +97,6 @@ class Net(nn.Module):
         # r = linearF_(self.delta_0.shape[0], self.delta_0, self.fctest) 
         
         # conv1
-        print(x.requires_grad)
         x = self.conv1(x)  # f(x)
         # print(x.requires_grad)
         r = linearF_(self.delta_0.shape[0], self.delta_0, self.conv1)   # f(r)
@@ -116,6 +115,7 @@ class Net(nn.Module):
         x = self.relu(x, self.delta_1, self.delta_2)
         #  conv2
         encipher.deltas.append(self.delta_2)
+        # print(encipher.n)
         x, r = self.conv2(x), linearF_(self.delta_2.shape[0], self.delta_2, self.conv2)
         #  dropout
         self.delta_3 = torch.rand(self.N_ks, *x.shape, requires_grad=False) 
@@ -136,9 +136,16 @@ class Net(nn.Module):
         self.delta_4 = self.delta_4.view(self.N_ks, -1, 320)
         
         # print(x.requires_grad)
-        #  fc
+        #  fc1
         encipher.deltas.append(self.delta_4)
         x, r = self.fc1(x), linearF_(self.delta_4.shape[0], self.delta_4, self.fc1)
+        
+        #  fc2
+        r = r.to(torch.float32)
+        print((self.delta_4[0].dtype))
+        print((r[0].dtype))
+        encipher.deltas.append(r)
+        x, r = self.fc2(x), linearF_(r.shape[0], r, self.fc2)
         #  relu
         self.delta_5 = torch.rand(self.N_ks, *x.shape, requires_grad=False) 
         x = self.relu(x, r, self.delta_5)
@@ -174,6 +181,8 @@ def train(epoch):
         optimizer.zero_grad()
         delta_init = torch.rand(16, *data.shape, requires_grad=False) 
         encipher.deltas.append(delta_init)
+        # print('len:{}'.format(len(encipher.deltas)))
+        # print(encipher.n)
         # print(delta_init.max())
         # print(data.max())
         # print(data.min())
@@ -204,6 +213,8 @@ def train(epoch):
         train_counter.append((batch_idx * 64) + ((epoch - 1) * len(train_loader.dataset)))
         # torch.save(network.state_dict(), './model.pth')
         # torch.save(optimizer.state_dict(), './optimizer.pth')
+        encipher.deltas.clear()
+        encipher.n = 3
 
 
 def test():

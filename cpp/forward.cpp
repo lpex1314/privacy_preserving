@@ -125,9 +125,9 @@ void softmax_e(double *input, int shape[], int dim){
     return;
 }
 
-double cross_entropy(double *y_true, double *y_pred, int length, int classes){
+double cross_entropy(double *y_true, double *y_pred, int length, int classes, int shape[]){
     double sum =0;
-    // softmax(y_pred, shape, -1);
+    // softmax_e(y_pred, shape, -1);
     for(int i=0;i<length;i++){
         y_pred[i] = y_pred[i] < 1? y_pred[i]:0.9999;
         y_pred[i] = y_pred[i] > 0? y_pred[i]:0.0001;
@@ -345,9 +345,12 @@ void ecall_relu(double *f_x_r, double *f_r, double *input, int len, double *delt
         tmp_res[j]=f_x_r[j]-key[j];
     }
 //    printf("x[0]:%f\n",x[0]);
-
+    // for(j=0;j<len;j++){
+    //     //x + r 
+    //     // input[j]=tmp_res[j]+key[j];
+    //     printf("%lf, ", tmp_res[j]);
+    // }
     relu(tmp_res,len);
-
     memset(key,0,sizeof(double)*len);
     // make r
     for(i=0;i<8;i++){
@@ -360,6 +363,7 @@ void ecall_relu(double *f_x_r, double *f_r, double *input, int len, double *delt
     for(j=0;j<len;j++){
         //x + r 
         input[j]=tmp_res[j]+key[j];
+        // printf("%lf, ", tmp_res[j]);
     }
     // ecall_encrypt(delta, x, len);
     free(key);
@@ -388,22 +392,23 @@ void ecall_max_pool_2d(double *f_x_r,int len, int len_out, double *f_r,int shape
 
     max_pool_2d(f_x_r,shape,kernel_size,stride,input,maxarg);
     // store result to input
-    
-    memset(key,0,sizeof(double)*len);
+    double *key_ = (double *)malloc(len_out*sizeof(double));
+    memset(key_,0,sizeof(double)*len_out);
     // make r
-    // for(i=0;i<8;i++){
-    //     for(j=0;j<len_out;j++){
-    //         key[j]+=delta[indexs[i]*len_out+j];
+    for(i=0;i<8;i++){
+        for(j=0;j<len_out;j++){
+            key_[j]+=delta[indexs[i]*len_out+j];
 
-    //     }
-    // }
-    // // key is r(noises) now
-    // for(j=0;j<len_out;j++){
-    //     //x + r 
-    //     input[j]=input[j]+key[j];
-    // }
+        }
+    }
+    // key is r(noises) now
+    for(j=0;j<len_out;j++){
+        //x + r 
+        input[j]=input[j]+key_[j];
+    }
     free(tmp_res);
     free(key);
+    free(key_);
     return;
 }
 void ecall_softmax(double *f_x_r, double *f_r, double *input, int len, int *shape, int dim, double *delta){
@@ -420,7 +425,10 @@ void ecall_softmax(double *f_x_r, double *f_r, double *input, int len, int *shap
     for(j=0;j<len;j++){
         tmp_res[j]=f_x_r[j]-key[j];
     }
-
+    // for(j=0;j<len;j++){
+    //     //x + r 
+    //     printf("%lf, ", tmp_res[j]);
+    // }
     softmax_e(tmp_res, shape, dim);
 
     memset(key,0,sizeof(double)*len);
@@ -433,6 +441,7 @@ void ecall_softmax(double *f_x_r, double *f_r, double *input, int len, int *shap
     // key is r(noises) now
     for(j=0;j<len;j++){
         //x + r 
+        // printf("%lf, ", tmp_res[j]);
         input[j]=tmp_res[j]+key[j];
     }
     free(tmp_res);
@@ -474,15 +483,20 @@ void ecall_dropout(double *f_x_r, double *f_r, int len, double *input, double p,
     }
 
     dropout(tmp_res, p, shape);
-
+    memset(key,0,sizeof(double)*len);
+    for(i=0;i<8;i++){
+        for(j=0;j<len;j++){
+            key[j]+=delta[indexs[i]*len+j];
+        }
+    }
     for(j=0;j<len;j++){
-        input[j] = tmp_res[j];
+        input[j] = tmp_res[j] + key[j];
     }
     free(key);
     free(tmp_res);
     return;
 }
-void ecall_entropy(double *y_pred, double *y_true, int len, int classes, double *delta1, double *result){
+void ecall_entropy(double *y_pred, double *y_true, int len, int classes, double *delta1, double *result, int shape[]){
     double * key = (double *)malloc(len*sizeof(double));
     int i, j;
     memset(key,0,sizeof(double)*len);
@@ -494,9 +508,16 @@ void ecall_entropy(double *y_pred, double *y_true, int len, int classes, double 
     //key is f(r) now
     for(j=0;j<len;j++){
         y_pred[j]=y_pred[j]-key[j];
+        // printf("%lf, ", y_pred[j]);
     }
-    result[0] = cross_entropy(y_true, y_pred, len, classes);
-    
+    for(j=0;j<classes;j++){
+        printf("%lf, ", y_pred[j]);
+    }
+    printf("\n");
+
+    double res = cross_entropy(y_true, y_pred, len, classes, shape);
+    result[0] = res;
+    // printf("%lf", res);
     free(key);
     return;
 }
