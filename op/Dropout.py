@@ -28,7 +28,7 @@ class _DropoutNd(nn.Module):
 class DropoutFunction(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input: Tensor, p: float, delta1, delta2) -> Tensor:
-        print('************dropout************')
+        # print('************dropout************')
         shape_x, x, len_x, double_array_x = preprocess(input)
         shape_fr, delta1_c, len_r, float_array_delta1 = preprocess(delta1)
         shape_delta2, delta2_c, len_del, float_array_delta2 = preprocess(delta2)
@@ -51,7 +51,7 @@ class DropoutFunction(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, gradOutput):
-        print('************dropout_backward************')
+        # print('************dropout_backward************')
         output, delta1, delta2 = ctx.saved_tensors
         p = ctx.p
         shape_dy, dy, len_dy, double_array_dy = preprocess(gradOutput)

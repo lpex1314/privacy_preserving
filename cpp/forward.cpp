@@ -124,7 +124,91 @@ void softmax_e(double *input, int shape[], int dim){
     }
     return;
 }
-
+void ecall_batchnorm2d(double *input, double eps, double momentum, int mode, int shape[], double *running_mean, double *running_var, double *delta1, double *delta2, int len){
+    //running
+    // double * key = (double *)malloc(len*sizeof(double));
+    // int i, j;
+    // memset(key,0,sizeof(double)*len);
+    // for(i=0;i<8;i++){
+    //     for(j=0;j<len;j++){
+    //         key[j]+=delta1[indexs[i]*len+j];
+    //     }
+    // }
+    // //key is f(r) now
+    // for(j=0;j<len;j++){
+    //     input[j]=input[j]-key[j];
+    // }
+    /* 
+        BN
+    */
+    int N,C,H,W;
+    int k1,k2,k3;
+    N=shape[0],C=shape[1],H=shape[2],W=shape[3];
+    k3=C*H*W;k2=H*W;k1=W;
+    // double *mean = (double*)malloc(sizeof(double)*C);
+    // double *var = (double*)malloc(sizeof(double)*C);
+    // memset(mean, 0, sizeof(double)*C);
+    // memset(var, 0, sizeof(double)*C);
+    double mean_tmp=0;
+    double mean_2_tmp = 0;
+    double var_tmp=0;
+    double std;
+    if(mode==1){ // train
+        for(int idx_c=0;idx_c<C;idx_c++){
+            mean_tmp = 0;
+            var_tmp = 0;
+            mean_2_tmp = 0;
+            std = 0;
+            for(int idx_n=0;idx_n<N;idx_n++){
+                for(int idx_h=0;idx_h<H;idx_h++){
+                    for(int idx_w=0;idx_w<W;idx_w++){
+                        mean_tmp += input[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] / (double) (N*H*W);
+                        mean_2_tmp += input[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] * input[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] / (double) (N*H*W);
+                    }
+                }
+            }
+            var_tmp = mean_2_tmp - mean_tmp * mean_tmp ;
+            running_mean[idx_c] = momentum * running_mean[idx_c] + (1 - momentum) * mean_tmp;
+            running_var[idx_c] = momentum * running_var[idx_c] + (1 - momentum) * var_tmp;
+            std = sqrt(var_tmp + eps);
+            for(int idx_n=0;idx_n<N;idx_n++){
+                for(int idx_h=0;idx_h<H;idx_h++){
+                    for(int idx_w=0;idx_w<W;idx_w++){
+                        input[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] = (input[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] - mean_tmp) / std;
+                    }
+                }
+            }
+        }
+    }
+    if(mode==0){// test
+        for(int idx_c=0;idx_c<C;idx_c++){
+            var_tmp = running_var[idx_c];
+            mean_tmp = running_mean[idx_c];
+            std = sqrt(var_tmp + eps);
+            for(int idx_n=0;idx_n<N;idx_n++){
+                for(int idx_h=0;idx_h<H;idx_h++){
+                    for(int idx_w=0;idx_w<W;idx_w++){
+                        input[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] = (input[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] - mean_tmp) / std;
+                    }
+                }
+            }
+        }
+    }
+    /*
+        Encrypt
+    */
+    // memset(key,0,sizeof(double)*len);
+    // for(i=0;i<8;i++){
+    //     for(j=0;j<len;j++){
+    //         key[j]+=delta2[indexs[i]*len+j];
+    //     }
+    // }
+    // //key is f(r) now
+    // for(j=0;j<len;j++){
+    //     input[j]=input[j]+key[j];
+    // }
+    return;
+}
 double cross_entropy(double *y_true, double *y_pred, int length, int classes, int shape[]){
     double sum =0;
     // softmax_e(y_pred, shape, -1);
@@ -510,10 +594,10 @@ void ecall_entropy(double *y_pred, double *y_true, int len, int classes, double 
         y_pred[j]=y_pred[j]-key[j];
         // printf("%lf, ", y_pred[j]);
     }
-    for(j=0;j<classes;j++){
-        printf("%lf, ", y_pred[j]);
-    }
-    printf("\n");
+    // for(j=0;j<classes;j++){
+    //     printf("%lf, ", y_pred[j]);
+    // }
+    // printf("\n");
 
     double res = cross_entropy(y_true, y_pred, len, classes, shape);
     result[0] = res;

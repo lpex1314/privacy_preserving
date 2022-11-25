@@ -240,6 +240,147 @@ void d_softmax(double *y, double *result, int len, int len_out, int dim, int sha
     return;
 
 }
+void d_batchnorm(double *x_hat, double *grad_out, double *running_mean, double *running_var, double *weight, double eps, double *delta, int len, int shape[], double *ret_grad_w, double *ret_grad_b){
+    // x_hat, grad_out: len
+    // weight,bias : C
+    int N,C,H,W;
+    int k1,k2,k3;
+    N=shape[0],C=shape[1],H=shape[2],W=shape[3];
+    k3=C*H*W;k2=H*W;k1=W;
+    // double * key = (double *)malloc(len*sizeof(double));
+    // int i, j;
+    // memset(key,0,sizeof(double)*len);
+    // for(i=0;i<8;i++){
+    //     for(j=0;j<len;j++){
+    //         key[j]+=delta[indexs[i]*len+j];
+    //     }
+    // }
+    // //key is f(r) now
+    // for(j=0;j<len;j++){
+    //     x_hat[j]=x_hat[j]-key[j]; // x_hat is decrypted now 
+    //     grad_out[j] /= alpha;
+    // }
+    int i, j;
+    double *grad_w = (double*)malloc(sizeof(double)*C*H*W);
+    memset(grad_w,0,sizeof(double)*C*H*W);
+    double tmp=0;
+    for(int idx_c=0;idx_c<C;idx_c++){
+        for(int idx_h=0;idx_h<H;idx_h++){
+            for(int idx_w=0;idx_w<W;idx_w++){
+                tmp = 0;
+                for(int idx_n=0;idx_n<N;idx_n++){
+                    
+                    tmp += x_hat[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] * grad_out[idx_n*k3+idx_c*k2+idx_h*k1+idx_w];
+                }
+                
+                grad_w[idx_c*k2+idx_h*k1+idx_w] = tmp;
+                
+            }
+        }
+    }
+    for(int idx_c=0;idx_c<C;idx_c++){
+        tmp = 0;
+        for(int idx_h=0;idx_h<H;idx_h++){
+            for(int idx_w=0;idx_w<W;idx_w++){
+                for(int idx_n=0;idx_n<N;idx_n++){
+                    tmp += x_hat[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] * grad_out[idx_n*k3+idx_c*k2+idx_h*k1+idx_w];
+                }  
+            }
+        }
+        ret_grad_w[idx_c] = tmp;
+    }
+    for(int idx_c=0;idx_c<C;idx_c++){
+        tmp = 0;
+        for(int idx_h=0;idx_h<H;idx_h++){
+            for(int idx_w=0;idx_w<W;idx_w++){
+                for(int idx_n=0;idx_n<N;idx_n++){
+                    tmp += 1 * grad_out[idx_n*k3+idx_c*k2+idx_h*k1+idx_w];
+                }  
+            }
+        }
+        ret_grad_b[idx_c] = tmp;
+    }
+    double *grad_b = (double*)malloc(sizeof(double)*C*H*W);
+    memset(grad_b,0,sizeof(double)*C*H*W);
+    for(int idx_c=0;idx_c<C;idx_c++){
+        for(int idx_h=0;idx_h<H;idx_h++){
+            for(int idx_w=0;idx_w<W;idx_w++){
+                tmp = 0;
+                for(int idx_n=0;idx_n<N;idx_n++){
+                    tmp += 1 * grad_out[idx_n*k3+idx_c*k2+idx_h*k1+idx_w];
+                }
+                grad_b[idx_c*k2+idx_h*k1+idx_w] = tmp;
+            }
+        }
+    }
+    double *coef_inp = (double*)malloc(sizeof(double)*C);
+    for(int idx_c=0;idx_c<C;idx_c++){
+        coef_inp[idx_c] = (double) 1 / N * weight[idx_c] / sqrt(running_var[idx_c] + eps);
+    }    
+    double *grad_w_expand = (double*)malloc(sizeof(double)*len);
+    for(int idx_n=0;idx_n<N;idx_n++){
+        for(int idx_c=0;idx_c<C;idx_c++){
+            for(int idx_h=0;idx_h<H;idx_h++){
+                for(int idx_w=0;idx_w<W;idx_w++){
+                    grad_w_expand[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] = grad_w[idx_c*k2+idx_h*k1+idx_w];
+                }
+            }
+        }
+    }
+    double *part1 = (double*)malloc(sizeof(double)*len);
+    for(i=0;i<len;i++){
+        part1[i] = -1 * grad_w_expand[i] * x_hat[i];
+    }
+    double *part2 = (double*)malloc(sizeof(double)*len);
+    for(i=0;i<len;i++){
+        part2[i] = N * grad_out[i];
+    }
+    double *part3 = (double*)malloc(sizeof(double)*len);
+    for(int idx_n=0;idx_n<N;idx_n++){
+        for(int idx_c=0;idx_c<C;idx_c++){
+            for(int idx_h=0;idx_h<H;idx_h++){
+                for(int idx_w=0;idx_w<W;idx_w++){
+                    part3[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] = grad_b[idx_c*k2+idx_h*k1+idx_w];
+                }
+            }
+        }
+    }
+    double *inp_expand = (double*)malloc(sizeof(double)*len);
+    for(int idx_c=0;idx_c<C;idx_c++){
+        for(int idx_h=0;idx_h<H;idx_h++){
+            for(int idx_w=0;idx_w<W;idx_w++){
+                for(int idx_n=0;idx_n<N;idx_n++){
+                    inp_expand[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] = coef_inp[idx_c];
+                }
+            }
+        }
+    }
+    double *grad_x= (double*)malloc(sizeof(double)*len);
+    for(i=0;i<len;i++){
+        x_hat[i] = inp_expand[i] * (part1[i] + part2[2] + part3[i]);
+    }
+    // for(int idx_c=0;idx_c<C;idx_c++){
+    //     tmp=0;
+    //     for(int idx_h=0;idx_h<H;idx_h++){
+    //         for(int idx_w=0;idx_w<W;idx_w++){
+    //             tmp += grad_w[idx_c*k2+idx_h*k1+idx_w];
+                
+    //         }
+    //     }
+    //     printf("%lf; ", tmp);
+    //     ret_grad_w[idx_c] = tmp;
+    // }
+    // for(int idx_c=0;idx_c<C;idx_c++){
+    //     tmp=0;
+    //     for(int idx_h=0;idx_h<H;idx_h++){
+    //         for(int idx_w=0;idx_w<W;idx_w++){
+    //             tmp += grad_b[idx_c*k2+idx_h*k1+idx_w];
+    //         }
+    //     }
+    //     ret_grad_b[idx_c] = tmp;
+    // }
+    return;
+}
 void d_softmax_easy(double *dy, double *y, double *result, int len, int dim, int shape[], double *delta){
     //dy:[N, classes] = d(loss)/dy
     //y:[N, classes] = softmax(x)
@@ -409,7 +550,7 @@ void d_crossEntropy(double *y_true, double *y_pred, int shape[], int len, double
         y_pred[j]=y_pred[j]-key[j];
     }
     double tmp=0;
-    // softmax_e(y_pred, shape, -1);
+    softmax_e(y_pred, shape, -1);
     int mean = len / classes; 
     for(int i=0;i<len;i++){
         result[i] = (y_pred[i] - y_true[i]) / mean; 
@@ -533,17 +674,18 @@ void decrypt_linear(double *delta, double *gout, double *dw, int len, int shape[
     }
     // vector<vector<vector<vector<float>>>> noise(N, vector<vector<vector<float>>>(C, vector<vector<float>>(H, vector<float>(W,0))));
     double *w_update = (double*)malloc(sizeof(double)*D*C);
+    memset(w_update,0,sizeof(double)*D*C);
     int k1,k2,k3;
     double tmp;
-    for(i=0;i<D;i++){
-        for(j=0;j<C;j++){
-            tmp = 0;
-            for(int k=0;k<N;k++){
-                tmp += key[k*D + i] * gout[k*C + j];
+    for (int idx_n = 0; idx_n < N; idx_n++){
+        for(i=0;i<D;i++){
+            for(j=0;j<C;j++){
+                tmp = key[idx_n*D + i] * gout[idx_n*C + j];
+                w_update[i*C+j] += tmp / N;
             }
-            w_update[i*C+j] = tmp;
         }
     }
+    
     for(i=0;i<D;i++){
         for(j=0;j<C;j++){
             dw[i*C+j] -= w_update[i*C+j];

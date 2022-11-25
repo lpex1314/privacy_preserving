@@ -80,7 +80,7 @@ class MaxPool2dFunction(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, gradOutput):
-        print('**********maxpool_backward***********')
+        # print('**********maxpool_backward***********')
         # print(gradOutput.max())
         # print(gradOutput.min())
         input, output, maxarg, delta1, delta2 = ctx.saved_tensors

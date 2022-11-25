@@ -18,35 +18,31 @@ def register_hook(module):
             i.register_backward_hook(backward_hook2)
 
 def backward_hook2(module, gin, gout):
-    # print(module)
+    print(module)
     # print("len:"+str(len(gout)))
     # print(gout[0].shape)
     if len(gin) > 2:
         gin0, gin1, gin2 = gin
+        # print("gin0.shape:{}".format(gin0.shape)) 
+        # print("gin1.shape:{}".format(gin1.shape)) 
         if isinstance(module, nn.Linear):
             gin0, gin2, gin1 = dec_linear(gin2, gin0, gin1, gout)
         elif isinstance(module, nn.Conv2d):
             gin2, gin1, gin0 = dec_conv(gin1, gin2, gin0, gout)
         elif isinstance(module, nn.AdaptiveAvgPool2d):
             print("get wrong")
-        new_gin = tuple([gin0, gin1, gin2])
+        new_gin = tuple([gin0, gin1, gin2]) # db, dw, dx
     else:
-        gin0, gin1 = gin
-        # if gin0 is None:
-        #     print("gin0 is none")
-        # else:
-        #     print("g0:" + str(gin0.shape))
-        # if gin1 is None:
-        #     print("gin1 is none")
-        # else:
-        #     print("g1:" + str(gin1.shape))
-        # if gin0 is not None and gin1 is not None:
+        gin0, gin1 = gin #  = dx, dw
+        print("dwbefore:" + str(gin1.flatten()[0:10]))
+        # print("gin0.shape:{}".format(gin0.shape)) 
+        # print("gin1.shape:{}".format(gin1.shape)) 
         if isinstance(module, nn.Linear):
             _, gin1, gin0 = dec_linear(gin1, None, gin0, gout)
         else:
             gin2, gin1, gin0 = dec_conv(gin1, None, gin0, gout)
-        # print("dw:" + str(gin1.flatten()[0:10]))
-        # print("w:" + str(module.weight.flatten()[0:10]))
+        print("dw:" + str(gin1.flatten()[0:10]))
+        print("w:" + str(module.weight.flatten()[0:10]))
         # print("grad:"+str(torch.mean(gout[0])))
         # print("dw:"+str(torch.mean(gin1)))
         new_gin = tuple([gin0, gin1])  # dx, dw
@@ -54,7 +50,7 @@ def backward_hook2(module, gin, gout):
 
 
 def dec_linear(dw, db, dx, gout):
-    print("***********linear_backward**********")
+    # print("***********linear_backward**********")
     # print(dx.max())
     # print(dx.min())
     grad_out = gout[0]
@@ -74,7 +70,7 @@ def dec_linear(dw, db, dx, gout):
     shape_dw, dw_c, _, float_array_w = preprocess(dw)
     shape_x, _, len_x, _ = preprocess(dx)
     # print('len_x:{}'.format(len_x))
-    # print('dw.shape:{}'.format(wnew_dw.shape))
+    # print('dw.shape:{}'.format(dw.shape))
     # print('dx.shape:{}'.format(dx.shape))
     # print('dy.shape:{}'.format(grad_out.shape))
     len_c = c_int(len_x)
@@ -88,7 +84,7 @@ def dec_linear(dw, db, dx, gout):
     return new_db, new_dw, new_dx
 
 def dec_conv(dw, db, dx, gout):
-    print("***********conv_backward**********")
+    # print("***********conv_backward**********")
     # print(dx.max())
     # print(dx.min())
     grad_out = gout[0]

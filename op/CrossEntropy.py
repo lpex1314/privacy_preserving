@@ -27,13 +27,12 @@ class CrossEntropyFunction(torch.autograd.Function):
         result = float_array_res(*res)
         class_c = c_int(classes)
         len_c = c_int(len_x)
-        print(len_x)
-        print(shape_x)
-        print(shape_fr)
+        # print(len_x)
+        # print(shape_x)
+        # print(shape_fr)
         forward.ecall_entropy.argtypes = (double_array_x, double_array_y, c_int, c_int, float_array_del1, float_array_res, int_array_shape)
         forward.ecall_entropy(x, y, len_c, class_c, delta1_c, result, shape_c)
-        loss_ = np.frombuffer(result, dtype=np.double)
-        loss = loss_[0]
+        loss = np.frombuffer(result, dtype=np.double)[0]
         loss = torch.tensor(loss, dtype=torch.float)
         ctx.save_for_backward(loss, y_pre, labels, delta1)
         ctx.classes = classes
@@ -43,7 +42,7 @@ class CrossEntropyFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, gradOutput):\
         # gradOutput=1? Yes! 1 = dl/dl
-        print('**********cross_entropy_backward***********')
+        # print('**********cross_entropy_backward***********')
         # print(gradOutput)
         loss, y_pred, labels, delta1 = ctx.saved_tensors  # y
         # print('loss:{}'.format(loss))

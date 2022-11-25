@@ -11,7 +11,7 @@ forward, backward = getdll()
 class ReLUFunction(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input: Tensor, delta1: Tensor, delta2: Tensor) -> Tensor:
-        print('**********relu***********')
+        # print('**********relu***********')
         shape_x, x, len_x, double_array_x = preprocess(input)
         shape_fr, f_r, len_r, float_array_f_r = preprocess(delta1)
         shape_delta, delta_c, len_del, float_array_delta = preprocess(delta2)
@@ -27,8 +27,8 @@ class ReLUFunction(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, gradOutput):
-        print('**********relu_backward***********')
-        # print(gradOutput)
+        # print('**********relu_backward***********')
+        print("grad_output:" + str(gradOutput.flatten()[0:10]))
         # print(gradOutput.max())
         # print(gradOutput.min())
         y, delta1, delta2 = ctx.saved_tensors  # y
@@ -44,6 +44,7 @@ class ReLUFunction(torch.autograd.Function):
         output = output.reshape(*shape_dy)
         # print(output.max())
         # print(output.min())
+        print("grad_input:" + str(output.flatten()[0:10]))
         return output, None, None
 
 
