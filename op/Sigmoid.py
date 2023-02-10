@@ -1,3 +1,4 @@
+# Simoid没有用于经典模型所以自定义op未开发，但已开发cpp函数
 import torch
 from ctypes import *
 from torch import Tensor
@@ -10,26 +11,13 @@ forward, backward = getdll()
 
 class SigmoidFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, input: Tensor) -> Tensor:
+    def forward(ctx, input: Tensor):
         print('**********sigmoid***********')
-        shape_x, x, len_x, double_array_x = preprocess(input)
-        forward.sigmoid.argtypes = (double_array_x, c_int)
-        forward.sigmoid(x, len_x)
-        output = np.frombuffer(x, dtype=np.double)
-        output = torch.tensor(output, dtype=torch.float)
-        output = output.reshape(*shape_x)
-        return output
+        return 
 
     @staticmethod
     def backward(ctx, gradOutput):
-        shape_x, x, len_x, double_array_x = preprocess(gradOutput)
-        output = x
-        backward.sigmoid.argtypes = (double_array_x, c_int, double_array_input)
-        backward.sigmoid(x, len_x, output)
-        output = np.frombuffer(output, dtype=np.double)
-        output = torch.tensor(output, dtype=torch.float)
-        output = output.reshape(*shape_x)
-        return output
+        return 
 
 
 class Sigmoid(nn.Module):

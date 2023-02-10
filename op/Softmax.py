@@ -5,7 +5,8 @@ import numpy as np
 import torch.nn as nn
 from preprocess import getdll, preprocess
 from typing import List, Optional
-m = nn.MaxPool2d
+from globals import global_param
+num_segments = global_param.num_segmentation
 forward, backward = getdll()
 
 
@@ -13,81 +14,56 @@ class SoftmaxFunction(torch.autograd.Function):
     dim: Optional[int]
     
     @staticmethod
-    def forward(ctx, input: Tensor, dim, delta1, delta2) -> Tensor:   
-    #   def forward(ctx, input: Tensor, dim) -> Tensor:
-        # print('**********softmax***********')
-        shape_x, x, len_x, double_array_x = preprocess(input)
-        shape_fr, f_r, len_r, float_array_f_r = preprocess(delta1)
-        shape_delta, delta_c, len_del, float_array_delta = preprocess(delta2)
-        tmp = torch.randn(input.shape)
-        shape_res, res, len_res, float_array_res = preprocess(tmp)
+    def forward(ctx, input: Tensor) -> Tensor:   
+         # print('**********softmax***********')
+        shape_x_hat, x_hat, len_hat, double_array_xhat = preprocess(input)
+        N, C = shape_x_hat[0] // num_segments, shape_x_hat[1]
+        len_x = N * C
+        shape_res = torch.Size([N, C])
+        res = torch.rand(shape_res)
+        shape_res, result, len_res, double_array_res = preprocess(res)
         int_array_shape = c_int * 2
-        dim_c = c_int(dim)
         len_c = c_int(len_x)
-        output = x
-        shape_c = int_array_shape(*shape_x)
-        forward.ecall_softmax.argtypes = (double_array_x, float_array_f_r, float_array_res, c_int, int_array_shape, c_int, float_array_delta)
-        forward.ecall_softmax(x, f_r, res, len_c, shape_c, dim_c, delta_c)
-        output = np.frombuffer(res, dtype=np.double)
+        shape_c = int_array_shape(*shape_res)
+        forward.ecall_softmax_easy.argtypes = (double_array_xhat, c_int, double_array_res, int_array_shape)
+        forward.ecall_softmax_easy(x_hat, len_c, result, shape_c)
+        output = np.frombuffer(result, dtype=np.double)
         output = torch.tensor(output, dtype=torch.float)
-        output = output.reshape(*shape_x)
+        output = output.reshape(*shape_x_hat)
         # print(output)
-        ctx.dim = dim
-        ctx.save_for_backward(output, delta1, delta2)
-        # print(output.requires_grad)
+        ctx.save_for_backward(output)
         return output
 
     @staticmethod
     def backward(ctx, gradOutput):
-        # print('**********softmax_backward***********')
+        print('**********softmax_backward***********')
         # print(gradOutput.max())
         # print(gradOutput.min())
-        print("grad_output:" + str(gradOutput.flatten()[0:10]))
-        dim = ctx.dim
-        out, delta1, delta2 = ctx.saved_tensors
-        shape_del2, delta2_c, len_del, double_array_del2 = preprocess(delta2)
-        shape_x, y, len_x, double_array_y = preprocess(out)
-        shape_dy, dy, len_dy, double_array_dy = preprocess(gradOutput)
-        # print(shape_dy)
-        # print(shape_x)
-        output = y
-        # print(shape_x)
-        N = shape_x[0]
-        C = shape_x[1]
-        double_array_res = c_double * len_dy
+        output, = ctx.saved_tensors
+        res = torch.rand_like(output)
+        shape_y_hat, y, len_y, double_array_y_hat = preprocess(output)
+        shape_dy_hat, dy, len_dy, double_array_dy_hat = preprocess(gradOutput)
+        shape_res, result, len_res, double_array_res = preprocess(res)
+        N, C = shape_y_hat[0] // num_segments, shape_y_hat[1]
         int_array_shape = c_int * 2
-        result = torch.randn([len_dy])
-        len_x_c = c_int(len_x)
-        dim_c = c_int(dim)
+        shape_x = torch.Size([N, C])
+        len_x = N * C
+        len_c = c_int(len_x)
         shape_c = int_array_shape(*shape_x)
-        result_c = double_array_res(*result.cpu().detach().numpy().tolist())
-        backward.d_softmax_easy.argtypes = (double_array_dy, double_array_y, double_array_res, c_int, c_int, int_array_shape, double_array_del2)
-        backward.d_softmax_easy(dy, y, result_c, len_x_c, dim_c, shape_c, delta2_c)
-        output = np.frombuffer(result_c, dtype=np.double)
-        output = torch.tensor(output, dtype=torch.float)
-        output = output.reshape(*shape_dy)
-        # print(output.max())
-        # print(output.min())
-        print("grad_input:" + str(output.flatten()[0:10]))
-        return output, None, None, None
+        backward.d_softmax_easy.argtypes = (double_array_dy_hat, double_array_y_hat, double_array_res, c_int, int_array_shape)
+        backward.d_softmax_easy(dy, y, result, len_c, shape_c)
+        grad_in = np.frombuffer(result, dtype=np.double)
+        grad_in = torch.tensor(grad_in, dtype=torch.float)
+        grad_in = grad_in.reshape(*shape_y_hat)
+        return grad_in
 
 
 class Softmax(nn.Module):
-    __constants__ = ['dim']
-    dim: Optional[int]
 
-    def __init__(self, dim: Optional[int] = None) -> None:
+    def __init__(self) -> None:
         super(Softmax, self).__init__()
-        self.dim = dim
 
-    def __setstate__(self, state):
-        super().__setstate__(state)
-        if not hasattr(self, 'dim'):
-            self.dim = None
-
-    def forward(self, input: Tensor, delta1: Tensor, delta2: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         # print(delta1.shape)
-        return SoftmaxFunction.apply(input, self.dim, delta1, delta2)
+        return SoftmaxFunction.apply(input)
 
-    def extra_repr(self) -> str:
-        return 'dim={dim}'.format(dim=self.dim)

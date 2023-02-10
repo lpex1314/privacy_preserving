@@ -5,11 +5,15 @@ import numpy as np
 import torch.nn as nn
 from preprocess import getdll, preprocess
 from ctypes import *
-
+from typing import TypeVar, Union, Tuple
 forward, backward = getdll()
-from torch.nn.common_types import (_size_any_t, _size_1_t, _size_2_t, _size_3_t,
-                                   _ratio_3_t, _ratio_2_t, _size_any_opt_t, _size_2_opt_t, _size_3_opt_t)
-
+from globals import global_param
+num_segments = global_param.num_segmentation
+T = TypeVar('T')
+_scalar_or_tuple_2_t = Union[T, Tuple[T, T]]
+_scalar_or_tuple_any_t = Union[T, Tuple[T, ...]]
+size_2_t = _scalar_or_tuple_2_t[int]
+size_any_t = _scalar_or_tuple_any_t[int]
 
 class _MaxPool2d(nn.Module):
     __constants__ = ['kernel_size', 'stride', 'padding', 'dilation',
@@ -17,8 +21,8 @@ class _MaxPool2d(nn.Module):
     return_indices: bool
     ceil_mode: bool
 
-    def __init__(self, kernel_size: _size_any_t, stride: Optional[_size_any_t] = None,
-                 padding: _size_any_t = 0, dilation: _size_any_t = 1,
+    def __init__(self, kernel_size: size_2_t, stride: Optional[size_2_t] = None,
+                 padding: size_2_t = 0, dilation: size_2_t = 1,
                  return_indices: bool = False, ceil_mode: bool = False) -> None:
         super(_MaxPool2d, self).__init__()
         self.kernel_size = kernel_size
@@ -32,84 +36,117 @@ class _MaxPool2d(nn.Module):
         return 'kernel_size={kernel_size}, stride={stride}, padding={padding}' \
                ', dilation={dilation}, ceil_mode={ceil_mode}'.format(**self.__dict__)
 
+def encrypt(x):
+    shape_x = x.shape
+    N = shape_x[0]
+    res = torch.rand([N * num_segments, *shape_x[1:]])
+    _, x, len_x, double_array_x = preprocess(x)
+    print(len_x)
+    shape_res, res_c, len_res, double_array_res = preprocess(res)
+    forward.ecall_encrypt.argtypes = (double_array_x, c_int, double_array_res)
+    forward.ecall_encrypt(x, c_int(len_x), res_c)
+    input = np.frombuffer(res_c, dtype=np.double)
+    input = torch.tensor(input, dtype=torch.float)
+    input = input.reshape(*shape_res)  # [40, 7]
+    return input
+
+def decrypt(x):
+    shape_out, out_c, len_out, double_array_out = preprocess(x)
+    N = shape_out[0] // num_segments
+    result = torch.rand(N, *shape_out[1:])
+    shape_dec, res_c, len_res, double_array_res = preprocess(result)
+    forward.ecall_decrypt.argtypes = (double_array_out, c_int, double_array_res)
+    forward.ecall_decrypt(out_c, c_int(len_res), res_c)
+    dec_out = np.frombuffer(res_c, dtype=np.double)
+    dec_out = torch.tensor(dec_out, dtype=torch.float)
+    return dec_out
 
 class MaxPool2dFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, input, delta1, delta2, kernel_size, stride):
+    def forward(ctx, input, kernel_size, stride):
         # print('**********maxpool***********')
         shape_x, x, len_x, float_array_x = preprocess(input)
-        shape_fr, delta1_c, len_r, float_array_delta1 = preprocess(delta1)
-        shape_delta2, delta2_c, len_del, float_array_delta2 = preprocess(delta2)
+        # print(shape_x)
         int_array_shape = c_int * 4
+        N, C, H, W = shape_x[0] // num_segments, shape_x[1], shape_x[3], shape_x[3]
+        shape_x = torch.Size([N,C,H,W])
         shape_c = int_array_shape(*shape_x)
-        N, C, H, W = shape_x[0], shape_x[1], shape_x[3], shape_x[3]
         H_out = 1 + (H - kernel_size) // stride
         W_out = 1 + (W - kernel_size) // stride
         len_out = N * C * H_out * W_out
+        # print(len_out)
+        len_x = N * C * H * W
+        res = torch.rand([num_segments*len_out])
+        shape_res, res_c, len_res, float_array_res = preprocess(res)
         len_x_c = c_int(len_x)
         len_out_c = c_int(len_out)
-        shape_new = [N, C, H_out, W_out]
-        input_ = torch.randn([shape_x[0], shape_x[1], H_out,  W_out])
-        shape_in, input_, len_in, float_array_input = preprocess(input_)
+        shape_new = torch.Size([N * num_segments, C, H_out, W_out])
+        arg_shape = torch.Size([N, C, H_out, W_out])
         int_array_maxarg = c_int * len_out
         maxarg = torch.randint(0, len_out, [len_out])
         maxarg = maxarg.cpu().numpy().tolist()
         maxarg = int_array_maxarg(*maxarg)
-        forward.ecall_max_pool_2d.argtypes = (float_array_x, c_int, c_int, float_array_delta1, int_array_shape, c_int, c_int, float_array_input, float_array_delta2, int_array_maxarg)
-        forward.ecall_max_pool_2d(x, len_x_c, len_out_c, delta1_c, shape_c, kernel_size, stride, input_, delta2_c, maxarg)
-        result = np.frombuffer(input_, dtype=np.double)
+        forward.ecall_max_pool_2d.argtypes = (float_array_x, c_int, float_array_res, c_int, int_array_shape, c_int, c_int, int_array_maxarg)
+        forward.ecall_max_pool_2d(x, len_x_c, res_c, len_out_c, shape_c, kernel_size, stride, maxarg)
+        # print("maxpool OK!")
+        result = np.frombuffer(res_c, dtype=np.double)
         result = torch.tensor(result, dtype=torch.float)
         result = result.reshape(*shape_new)
-        
-        dec_result = np.frombuffer(x, dtype=np.double)
-        dec_result = torch.tensor(dec_result, dtype=torch.float)
-        dec_result = dec_result.reshape(*shape_x)
+        # dec_result = np.frombuffer(x, dtype=np.double)
+        # dec_result = torch.tensor(dec_result, dtype=torch.float)
+        # dec_result = dec_result.reshape(*shape_x)
         # print('dec_result:{}'.format(dec_result))
         # print(dec_result.shape)
         # print('max_pool_result:{}'.format(result))
         arg_out = np.frombuffer(maxarg, dtype=np.int32)
         arg_out = torch.tensor(arg_out)
-        agr_out = arg_out.reshape(*shape_new)
-        ctx.save_for_backward(input, result, arg_out, delta1, delta2)
+        ctx.save_for_backward(input, result, arg_out)
         ctx.H_out = H_out
         ctx.W_out = W_out
         ctx.stride = stride
         ctx.kernel_size = kernel_size
         # self.maxarg = arg_out.tolist()
+        # print(result.max())
+        # print(result.min())
+        # print(result)
         return result
 
     @staticmethod
     def backward(ctx, gradOutput):
-        # print('**********maxpool_backward***********')
+        print('*********maxpool_backward*********')
+        print(gradOutput.shape)
+        print(gradOutput)
         # print(gradOutput.max())
         # print(gradOutput.min())
-        input, output, maxarg, delta1, delta2 = ctx.saved_tensors
+        # print('maxpool back: grad_out max', dec_grad_out.max().item())
+        input, output, maxarg = ctx.saved_tensors
         H_out, W_out, kernel_size, stride = ctx.H_out, ctx.W_out, ctx.kernel_size, ctx.stride
-        shape_y, dy, len_y, float_array_y = preprocess(gradOutput)
+        shape_y, dy, len_y, float_array_dy = preprocess(gradOutput)
         shape_x = input.shape
-        len_x = input.flatten().shape[0]
+        len_x = input.flatten().shape[0] // num_segments
+        len_y = len_y // num_segments
         len_x_c = c_int(len_x)
         len_y_c = c_int(len_y)
-        result = torch.randn(input.shape)
+        result = torch.randn(*shape_x)
         shape_res, res, len_res, float_array_res = preprocess(result)
         int_array_maxarg = c_int * len_x
         arg = int_array_maxarg(*maxarg.cpu().detach().numpy().tolist())
-        backward.d_max_pool_2d.argtypes=(float_array_y, float_array_res, c_int, c_int, int_array_maxarg)
+        backward.d_max_pool_2d.argtypes=(float_array_dy, float_array_res, c_int, c_int, int_array_maxarg)
         backward.d_max_pool_2d(dy, res, len_y_c, len_x_c, arg)
-        # maxpool函数，传给TEE：dy，maxarg即可求导，不需要使用到y
+        # maxpool函数，传给TEE：只需dy，maxarg即可求导，不需要使用到y
         out = np.frombuffer(res, dtype=np.double)
         out = torch.tensor(out, dtype=torch.float)
         out = out.reshape(*shape_x)
         # print(out.max())
         # print(out.min())
         # print('gradOutput.shape:{}'.format(gradOutput.shape))
-        return out, None, None, None, None, None
+        print('self op', decrypt(out))
+        return out, None, None
 
-    
 class MaxPool2d(_MaxPool2d):
-    kernel_size: _size_2_t
-    stride: _size_2_t
-    padding: _size_2_t
-    dilation: _size_2_t
-    def forward(self, input: Tensor, delta1: Tensor, delta2: Tensor):
-        return MaxPool2dFunction.apply(input, delta1, delta2, self.kernel_size, self.stride)
+    kernel_size: size_2_t
+    stride: size_2_t
+    padding: size_2_t
+    dilation: size_2_t
+    def forward(self, input: Tensor):
+        return MaxPool2dFunction.apply(input, self.kernel_size, self.stride)

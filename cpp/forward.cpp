@@ -7,7 +7,43 @@
 #include <math.h>
 using namespace std;
 extern "C" {
-int indexs[8+5]={1,11,8,9,4,1,4,2};
+int indexs[16+5]={6, 2, 2, 3, 0, 6, 6, 7, 1, 2, 2, 4, 5, 0, 8, 4};
+int insert = 9;
+int Ne = 10;
+int Nt = 16;
+double gaussrand_NORMAL() {
+	static double V1, V2, S;
+	static int phase = 0;
+	double X;
+
+
+	if (phase == 0) {
+		do {
+			double U1 = (double) rand() / RAND_MAX;
+			double U2 = (double) rand() / RAND_MAX;
+
+
+			V1 = 2 * U1 - 1;
+			V2 = 2 * U2 - 1;
+			S = V1 * V1 + V2 * V2;
+		} while (S >= 1 || S == 0);
+
+
+		X = V1 * sqrt(-2 * log(S) / S);
+	} else
+		X = V2 * sqrt(-2 * log(S) / S);
+
+
+	phase = 1 - phase;
+
+
+	return X;
+}
+
+
+double gaussrand(double mean, double stdc) {
+	return mean + gaussrand_NORMAL() * stdc;
+}
 void relu(double *input,int len){
     for(int j=0;j<len;j++){
         input[j]=input[j]>=0?input[j]:0;
@@ -103,6 +139,7 @@ void relu(double *input,int len){
 void softmax_e(double *input, int shape[], int dim){
     dim = 1;
     int N=shape[0], C=shape[1];
+    // printf("N, C: %d %d\n", N, C);
     int k2=C;
     double sum=0;
     double max=0;
@@ -124,98 +161,12 @@ void softmax_e(double *input, int shape[], int dim){
     }
     return;
 }
-void ecall_batchnorm2d(double *input, double eps, double momentum, int mode, int shape[], double *running_mean, double *running_var, double *delta1, double *delta2, int len){
-    //running
-    // double * key = (double *)malloc(len*sizeof(double));
-    // int i, j;
-    // memset(key,0,sizeof(double)*len);
-    // for(i=0;i<8;i++){
-    //     for(j=0;j<len;j++){
-    //         key[j]+=delta1[indexs[i]*len+j];
-    //     }
-    // }
-    // //key is f(r) now
-    // for(j=0;j<len;j++){
-    //     input[j]=input[j]-key[j];
-    // }
-    /* 
-        BN
-    */
-    int N,C,H,W;
-    int k1,k2,k3;
-    N=shape[0],C=shape[1],H=shape[2],W=shape[3];
-    k3=C*H*W;k2=H*W;k1=W;
-    // double *mean = (double*)malloc(sizeof(double)*C);
-    // double *var = (double*)malloc(sizeof(double)*C);
-    // memset(mean, 0, sizeof(double)*C);
-    // memset(var, 0, sizeof(double)*C);
-    double mean_tmp=0;
-    double mean_2_tmp = 0;
-    double var_tmp=0;
-    double std;
-    if(mode==1){ // train
-        for(int idx_c=0;idx_c<C;idx_c++){
-            mean_tmp = 0;
-            var_tmp = 0;
-            mean_2_tmp = 0;
-            std = 0;
-            for(int idx_n=0;idx_n<N;idx_n++){
-                for(int idx_h=0;idx_h<H;idx_h++){
-                    for(int idx_w=0;idx_w<W;idx_w++){
-                        mean_tmp += input[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] / (double) (N*H*W);
-                        mean_2_tmp += input[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] * input[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] / (double) (N*H*W);
-                    }
-                }
-            }
-            var_tmp = mean_2_tmp - mean_tmp * mean_tmp ;
-            running_mean[idx_c] = momentum * running_mean[idx_c] + (1 - momentum) * mean_tmp;
-            running_var[idx_c] = momentum * running_var[idx_c] + (1 - momentum) * var_tmp;
-            std = sqrt(var_tmp + eps);
-            for(int idx_n=0;idx_n<N;idx_n++){
-                for(int idx_h=0;idx_h<H;idx_h++){
-                    for(int idx_w=0;idx_w<W;idx_w++){
-                        input[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] = (input[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] - mean_tmp) / std;
-                    }
-                }
-            }
-        }
-    }
-    if(mode==0){// test
-        for(int idx_c=0;idx_c<C;idx_c++){
-            var_tmp = running_var[idx_c];
-            mean_tmp = running_mean[idx_c];
-            std = sqrt(var_tmp + eps);
-            for(int idx_n=0;idx_n<N;idx_n++){
-                for(int idx_h=0;idx_h<H;idx_h++){
-                    for(int idx_w=0;idx_w<W;idx_w++){
-                        input[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] = (input[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] - mean_tmp) / std;
-                    }
-                }
-            }
-        }
-    }
-    /*
-        Encrypt
-    */
-    // memset(key,0,sizeof(double)*len);
-    // for(i=0;i<8;i++){
-    //     for(j=0;j<len;j++){
-    //         key[j]+=delta2[indexs[i]*len+j];
-    //     }
-    // }
-    // //key is f(r) now
-    // for(j=0;j<len;j++){
-    //     input[j]=input[j]+key[j];
-    // }
-    return;
-}
+
 double cross_entropy(double *y_true, double *y_pred, int length, int classes, int shape[]){
     double sum =0;
     // softmax_e(y_pred, shape, -1);
     for(int i=0;i<length;i++){
-        y_pred[i] = y_pred[i] < 1? y_pred[i]:0.9999;
-        y_pred[i] = y_pred[i] > 0? y_pred[i]:0.0001;
-        sum += y_true[i] * log(y_pred[i]);
+        sum += y_true[i] * log(y_pred[i] + 1e-6);
     }
     int lens =  length / classes;
     return -sum / (double) lens;
@@ -225,7 +176,7 @@ void dropout(double *input, double p, int shape[]){
     int a = 75;
     int c = 0;
     int N,C,H,W;
-    int random = 10;
+    int random = Ne;
     double rand;
     N=shape[0],C=shape[1],H=shape[2],W=shape[3];
     int k1=W,k2=H*W,k3=C*H*W;
@@ -344,25 +295,47 @@ void max_pool_2d(double *input, int shape[],int kernel_size, int stride, double*
     return;
 }
 
-void ecall_encrypt(double *delta, double *input, int len){
-    //delta is key_list with 256*len elements
-    //input size : len
+void ecall_softmax_easy(double *x_hat, int len, double *result, int shape[]){
+    // x_hat, ecrypted x
+    // len: len(x.flatten())
     int i, j;
-    double * key = (double *)malloc(len*sizeof(double));
-    memset(key,0,sizeof(double)*len);
-    // make r
-    for(i=0;i<8;i++){
+    double *tmp = (double*)malloc(sizeof(double)*len);
+    double *x = (double*)malloc(sizeof(double)*len);
+    memset(tmp, 0, sizeof(double)*len);
+    memset(result, 0, sizeof(double)*len*Ne);
+    // decrypt x_hat
+    for(i=0;i<Nt;i++){
         for(j=0;j<len;j++){
-            key[j]+=delta[indexs[i]*len+j];
-
+            tmp[j] += x_hat[indexs[i]*len+j];
+        }
+    }// x_  = x1 + x5 + x3 + x6 + x3......
+    for(j=0;j<len;j++){
+        x[j] = tmp[j] + x_hat[insert*len+j];
+    }// x = x_ + xNe
+    // relu
+    softmax_e(x, shape, 0);
+    // encrypt x
+    double mean=0, std, mean_sqr=0;
+    for(j=0;j<len;j++){
+        mean += x[j] / len;
+        mean_sqr += x[j] * x[j] / len;
+    }
+    std = sqrt(mean_sqr - mean * mean );
+    mean = mean / Nt;
+    for(i=0;i<len*(Ne-1);i++){
+        result[i] = gaussrand(mean, std);
+        result[i] = x[i % len] - result[i];
+    }//generate new x0~x8
+    for(i=0;i<Nt;i++){
+        for(j=len*(Ne-1);j<len*Ne;j++){
+            result[j] += result[indexs[i]*len+(j-len*(Ne-1))];
         }
     }
-    // key is r(noises) now
-    for(j=0;j<len;j++){
-        //x + r 
-        input[j]=input[j]+key[j];
-    }
-    free(key);
+    
+    for(j=len*(Ne-1);j<len*Ne;j++){
+        result[j] = x[j-len*(Ne-1)] - result[j];
+    }//compute xNe
+    free(tmp);
     return;
 }
 void ecall_sigmoid(double *f_x_r, double *f_r, int len, double *input, double *delta){
@@ -396,103 +369,246 @@ void ecall_sigmoid(double *f_x_r, double *f_r, int len, double *input, double *d
     free(key);
     return;
 }
-void ecall_decrypt(double *f_x_r, double *f_r, int len) {
-	double * key = (double *)malloc(len*sizeof(double));
+void ecall_relu(double *tx, int len, double *x_enc, double *x){
+    // tx: size of [Ne * N, classes]
+    // len: len(x.flatten())
     int i, j;
-    memset(key,0,sizeof(double)*len);
-    for(i=0;i<8;i++){
+    double *tmp = (double*)malloc(sizeof(double)*len);
+    memset(tmp, 0, sizeof(double)*len);
+    memset(x, 0, sizeof(double)*len);
+    memset(x_enc, 0, sizeof(double)*len*Ne);
+    // printf("tx\n");
+    
+    
+    for(i=0;i<Nt;i++){
         for(j=0;j<len;j++){
-            key[j]+=f_r[indexs[i]*len+j];
+            tmp[j] += tx[indexs[i]*len+j];
         }
-    }
-    //key is f(r) now
+    }// x_  = x1 + x5 + x3 + x6 + x3......
     for(j=0;j<len;j++){
-        f_x_r[j]=f_x_r[j]-key[j];
+        x[j] = tmp[j] + tx[insert*len+j];
+    }// x = x_ + xNe
+    //relu
+    double max=-1e2;
+    for(j=len-1;j>=0;j--){
+        if(x[j]>max)
+            max = x[j];
     }
-    free(key);
-    return ;
-}
-void ecall_relu(double *f_x_r, double *f_r, double *input, int len, double *delta){
-//    printf("fr[0]:%f x[0]:%f\n",f_r[0],x[0]);
-    // ecall_decrypt(f_r, x, len);
-    double *tmp_res = (double*)malloc(sizeof(double)*len);
-    double *key = (double *)malloc(len*sizeof(double));
-    int i, j;
-    memset(key,0,sizeof(double)*len);
-    for(i=0;i<8;i++){
-        for(j=0;j<len;j++){
-            key[j]+=f_r[indexs[i]*len+j];
-        }
-    }
-    //key is f(r) now
-    for(j=0;j<len;j++){
-        tmp_res[j]=f_x_r[j]-key[j];
-    }
-//    printf("x[0]:%f\n",x[0]);
-    // for(j=0;j<len;j++){
-    //     //x + r 
-    //     // input[j]=tmp_res[j]+key[j];
-    //     printf("%lf, ", tmp_res[j]);
+    
+    relu(x,len);
+    // printf("x\n");
+    // for(j=0;j<Ne0;j++){
+    //     printf("%lf, ", x[j]);
     // }
-    relu(tmp_res,len);
-    memset(key,0,sizeof(double)*len);
-    // make r
-    for(i=0;i<8;i++){
-        for(j=0;j<len;j++){
-            key[j]+=delta[indexs[i]*len+j];
-
+    //relu
+    double mean=0, std, mean_sqr=0;
+    for(j=0;j<len;j++){
+        mean += x[j] / len;
+        mean_sqr += x[j] * x[j] / len;
+    }
+    
+    std = sqrt(mean_sqr - mean * mean );
+    mean = mean / Nt;
+    for(i=0;i<len*(Ne-1);i++){
+        x_enc[i] = gaussrand(mean, std);
+        x_enc[i] = x[i % len] - x_enc[i];
+    }//generate new x0~x8
+    for(i=0;i<Nt;i++){
+        for(j=len*(Ne-1);j<len*Ne;j++){
+            x_enc[j] += x_enc[indexs[i]*len+(j-len*(Ne-1))];
         }
     }
-    // key is r(noises) now
-    for(j=0;j<len;j++){
-        //x + r 
-        input[j]=tmp_res[j]+key[j];
-        // printf("%lf, ", tmp_res[j]);
-    }
-    // ecall_encrypt(delta, x, len);
-    free(key);
-    free(tmp_res);
+    
+    for(j=len*(Ne-1);j<len*Ne;j++){
+        x_enc[j] = x[j-len*(Ne-1)] - x_enc[j];
+    }//compute xNe
+    free(tmp);
     return;
 }
-void ecall_max_pool_2d(double *f_x_r,int len, int len_out, double *f_r,int shape[],int kernel_size, int stride, double* input, double *delta, int *maxarg){
-    //decrypt
-    double *tmp_res = (double*)malloc(sizeof(double)*len);
-    double *key = (double *)malloc(len*sizeof(double));
+void ecall_batchnorm2d(double *tx, double *x_enc, double eps, double momentum, int mode, int shape[], double *running_mean, double *running_var, int len, double *input, double *w){
+    //running
+    // tx: size of Ne * len
+    // len: len(x.flatten())
+    // input: size len, store return tensor
     int i, j;
-    int N,C,H,W;
-    N=shape[0],C=shape[1],H=shape[2],W=shape[3];
-    int H_out = 1 + (H - kernel_size) / stride;
-    int W_out = 1 + (W - kernel_size) / stride;
-    memset(key,0,sizeof(double)*len);
-    for(i=0;i<8;i++){
+    double *tmp = (double*)malloc(sizeof(double)*len);
+    memset(tmp, 0, sizeof(double)*len);
+    memset(input, 0, sizeof(double)*len);
+    memset(x_enc, 0, sizeof(double)*len*Ne);
+    for(i=0;i<Nt;i++){
         for(j=0;j<len;j++){
-            key[j]+=f_r[indexs[i]*len+j];
+            tmp[j] += tx[indexs[i]*len+j];
         }
     }
-    //key is f(r) now
     for(j=0;j<len;j++){
-        f_x_r[j]=f_x_r[j]-key[j];
-    }
-
-    max_pool_2d(f_x_r,shape,kernel_size,stride,input,maxarg);
-    // store result to input
-    double *key_ = (double *)malloc(len_out*sizeof(double));
-    memset(key_,0,sizeof(double)*len_out);
-    // make r
-    for(i=0;i<8;i++){
-        for(j=0;j<len_out;j++){
-            key_[j]+=delta[indexs[i]*len_out+j];
-
+        input[j] = tmp[j] + tx[insert*len+j];
+    }// x(input) = x1 + x5 + x3 + x6 + x3......
+    /* 
+        BN
+    */
+    
+    int N,C,H,W;
+    int k1,k2,k3;
+    N=shape[0],C=shape[1],H=shape[2],W=shape[3];
+    k3=C*H*W;k2=H*W;k1=W;
+    double mean_tmp=0;
+    double mean_2_tmp = 0;
+    double var_tmp=0;
+    double std;
+    if(mode==1){ // train
+        for(int idx_c=0;idx_c<C;idx_c++){
+            mean_tmp = 0;
+            var_tmp = 0;
+            mean_2_tmp = 0;
+            std = 0;
+            for(int idx_n=0;idx_n<N;idx_n++){
+                for(int idx_h=0;idx_h<H;idx_h++){
+                    for(int idx_w=0;idx_w<W;idx_w++){
+                        mean_tmp += input[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] / (double) (N*H*W);
+                        mean_2_tmp += input[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] * input[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] / (double) (N*H*W);
+                    }
+                }
+            }
+            var_tmp = mean_2_tmp - mean_tmp * mean_tmp ;
+            running_mean[idx_c] = momentum * running_mean[idx_c] + (1 - momentum) * mean_tmp;
+            running_var[idx_c] = momentum * running_var[idx_c] + (1 - momentum) * var_tmp;
+            std = sqrt(var_tmp + eps);
+            for(int idx_n=0;idx_n<N;idx_n++){
+                for(int idx_h=0;idx_h<H;idx_h++){
+                    for(int idx_w=0;idx_w<W;idx_w++){
+                        input[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] = (input[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] - mean_tmp) / std;
+                    }
+                }
+            }
         }
     }
-    // key is r(noises) now
-    for(j=0;j<len_out;j++){
-        //x + r 
-        input[j]=input[j]+key_[j];
+    if(mode==0){// test
+        for(int idx_c=0;idx_c<C;idx_c++){
+            var_tmp = running_var[idx_c];
+            mean_tmp = running_mean[idx_c];
+            std = sqrt(var_tmp + eps);
+            for(int idx_n=0;idx_n<N;idx_n++){
+                for(int idx_h=0;idx_h<H;idx_h++){
+                    for(int idx_w=0;idx_w<W;idx_w++){
+                        input[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] = (input[idx_n*k3+idx_c*k2+idx_h*k1+idx_w] - mean_tmp) / std * w[idx_c];
+                    }
+                }
+            }
+        }
     }
-    free(tmp_res);
-    free(key);
-    free(key_);
+    // encrypt
+    double mean=0, std_=0, mean_sqr=0;
+    for(j=0;j<len;j++){
+        mean += input[j] / len;
+        mean_sqr += input[j] * input[j] / len;
+    }
+    std_ = sqrt(mean_sqr - mean * mean );
+    mean = mean / Nt;
+    // printf("%lf, ", mean);
+    // printf("%lf, ", std_);
+    // printf("mean,std\n");
+    for(i=0;i<len*(Ne-1);i++){
+        x_enc[i] = gaussrand(mean, std_);
+        x_enc[i] = input[i % len] - x_enc[i];
+    }//generate new x0~x8
+    
+    for(i=0;i<Nt;i++){
+        for(j=len*(Ne-1);j<len*Ne;j++){
+            x_enc[j] += x_enc[indexs[i]*len+(j-len*(Ne-1))];
+        }
+    }//compute x(Ne-1)
+    for(j=len*(Ne-1);j<len*Ne;j++){
+        x_enc[j] = input[j-len*(Ne-1)] - x_enc[j];
+
+    }
+    free(tmp);   
+    return;
+}
+void ecall_encrypt(double *x, int len, double *x_enc){
+    // len: length of x
+    int i,j;
+    double mean=0, std, mean_sqr=0;
+    for(j=0;j<len;j++){
+        mean += x[j] / len;
+        mean_sqr += x[j] * x[j] / len;
+    }
+    
+    std = sqrt(mean_sqr - mean * mean );
+    mean = mean / Nt;
+    memset(x_enc, 0, sizeof(double)*len*Ne);
+    for(i=0;i<len*(Ne-1);i++){
+        x_enc[i] = gaussrand(mean, std);
+        x_enc[i] = x[i % len] - x_enc[i];
+    }//generate new x0~x8, 服从(x-N)分布
+    for(i=0;i<Nt;i++){
+        for(j=len*(Ne-1);j<len*Ne;j++){
+            x_enc[j] += x_enc[ indexs[i]*len + (j-len*(Ne-1)) ];
+        }
+    }//addition of a number(Nt) of (X-N) distribution 若干个服从X-N分布的张量加和
+    for(j=len*(Ne-1);j<len*Ne;j++){
+        x_enc[j] = x[j-len*(Ne-1)] - x_enc[j];
+    }//compute x(Ne-1)
+    return;
+}
+void ecall_decrypt(double *x_enc, int len, double *x){
+    double *tmp = (double*)malloc(sizeof(double)*len);
+    memset(tmp, 0, sizeof(double)*len);
+    int i, j;
+    for(i=0;i<Nt;i++){
+        for(j=0;j<len;j++){
+            tmp[j] += x_enc[indexs[i]*len+j];
+        }
+    }
+    for(j=0;j<len;j++){
+        x[j] = tmp[j] + x_enc[insert*len+j];
+    }// x = x1 + x5 + x3 + x6 + x3......
+    free(tmp);
+    return;
+}
+void ecall_max_pool_2d(double *tx, int len, double *x_enc, int len_out, int shape[],int kernel_size, int stride, int *maxarg){
+    //decrypt
+    //x_enc: Ne * len_out
+    double *tmp = (double*)malloc(sizeof(double)*len);
+    memset(tmp, 0, sizeof(double)*len);
+    double *x = (double*)malloc(sizeof(double)*len);
+    memset(x, 0, sizeof(double)*len);
+    memset(x_enc, 0, sizeof(double)*len_out*Ne);
+    double *input = (double*)malloc(sizeof(double)*len_out);
+
+    int i, j;
+    for(i=0;i<Nt;i++){
+        for(j=0;j<len;j++){
+            tmp[j] += tx[indexs[i]*len+j];
+        }
+    }
+    for(j=0;j<len;j++){
+        x[j] = tmp[j] + tx[insert*len+j];
+    }// x = x1 + x5 + x3 + x6 + x3......
+    
+    max_pool_2d(x,shape,kernel_size,stride,input,maxarg);
+    // store result to input
+    double mean=0, std, mean_sqr=0;
+    for(j=0;j<len_out;j++){
+        mean += input[j] / len_out;
+        mean_sqr += input[j] * input[j] / len_out;
+    }
+    std = sqrt(mean_sqr - mean * mean );
+    mean = mean / Nt;
+    for(i=0;i<len_out*(Ne-1);i++){
+        x_enc[i] = gaussrand(mean, std);
+        x_enc[i] = input[i % len] - x_enc[i];
+    }//generate new x0~x8
+    for(i=0;i<Nt;i++){
+        for(j=len_out*(Ne-1);j<len_out*Ne;j++){
+            x_enc[j] += x_enc[indexs[i]*len_out+(j-len_out*(Ne-1))];
+        }
+    }//compute x(Ne-1)
+    for(j=len_out*(Ne-1);j<len_out*Ne;j++){
+        x_enc[j] = input[j-len_out*(Ne-1)] - x_enc[j];
+    }
+    free(tmp);
+    free(x);
+    free(input);
     return;
 }
 void ecall_softmax(double *f_x_r, double *f_r, double *input, int len, int *shape, int dim, double *delta){
@@ -552,57 +668,81 @@ void ecall_MSE(double *f_x_r_a, double *f_x_r_b, double *f_r, int len, int mode,
     return;
 }
 
-void ecall_dropout(double *f_x_r, double *f_r, int len, double *input, double p, int *shape, double *delta){
-    double *tmp_res = (double*)malloc(sizeof(double)*len);
-    double *key = (double *)malloc(len*sizeof(double));
+void ecall_dropout(double *x, int len, double p, int *shape, double *x_enc){
+    // len: real len of x
+    // shape: real shape of x
+    // x and x_enc of same size
     int i, j;
-    memset(key,0,sizeof(double)*len);
-    for(i=0;i<8;i++){
-        for(j=0;j<len;j++){
-            key[j]+=f_r[indexs[i]*len+j];
-        }
-    }
-    for(j=0;j<len;j++){
-        tmp_res[j]=f_x_r[j]-key[j];
-    }
+    double *tmp = (double*)malloc(sizeof(double)*len);
+    memset(tmp, 0, sizeof(double)*len);
+    double *x_real = (double*)malloc(sizeof(double)*len);
+    memset(x_real, 0, sizeof(double)*len);
+    memset(x_enc, 0, sizeof(double)*len*Ne);
 
-    dropout(tmp_res, p, shape);
-    memset(key,0,sizeof(double)*len);
-    for(i=0;i<8;i++){
+    for(i=0;i<Nt;i++){
         for(j=0;j<len;j++){
-            key[j]+=delta[indexs[i]*len+j];
+            tmp[j] += x[indexs[i]*len+j];
         }
-    }
+    }//x_ = x1 + x5 + x3 + x6 + x3......
     for(j=0;j<len;j++){
-        input[j] = tmp_res[j] + key[j];
+        x_real[j] = tmp[j] + x[insert*len+j];
+    }// x = x_ + xNe
+    // compute
+    dropout(x_real, p, shape);
+    // enc
+    double mean=0, std, mean_sqr=0;
+    for(j=0;j<len;j++){
+        mean += x_real[j] / len;
+        mean_sqr += x_real[j] * x_real[j] / len;
     }
-    free(key);
-    free(tmp_res);
+    std = sqrt(mean_sqr - mean * mean );
+    mean = mean / Nt;
+    for(i=0;i<len*(Ne-1);i++){
+        x_enc[i] = gaussrand(mean, std);
+        x_enc[i] = x_real[i % len] - x_enc[i];
+    }//generate new x1~x8
+    for(i=0;i<Nt;i++){
+        for(j=len*(Ne-1);j<len*Ne;j++){
+            x_enc[j] += x_enc[indexs[i]*len+(j-len*(Ne-1))];
+        }
+    }//compute x(Ne-1)
+    for(j=len*(Ne-1);j<len*Ne;j++){
+        x_enc[j] = x_real[j-len*(Ne-1)] - x_enc[j];
+    }
+    free(x_real);
+    free(tmp);
     return;
 }
-void ecall_entropy(double *y_pred, double *y_true, int len, int classes, double *delta1, double *result, int shape[]){
-    double * key = (double *)malloc(len*sizeof(double));
+void ecall_entropy(double *y_pred, double *y_true, int len, int classes, double *result, int shape[]){
     int i, j;
-    memset(key,0,sizeof(double)*len);
-    for(i=0;i<8;i++){
+    //decrypt
+    //N=batch_size
+    //y_pred: N*Ne*classes
+    //y_true: N*classes = len
+    double *tmp = (double*)malloc(sizeof(double)*len);
+    memset(tmp, 0, sizeof(double)*len);
+    double *y_hat = (double*)malloc(sizeof(double)*len);
+    memset(y_hat, 0, sizeof(double)*len);
+
+    for(i=0;i<Nt;i++){
         for(j=0;j<len;j++){
-            key[j]+=delta1[indexs[i]*len+j];
+            tmp[j] += y_pred[indexs[i]*len+j];
         }
-    }
-    //key is f(r) now
+    }//x_ = x1 + x5 + x3 + x6 + x3......
     for(j=0;j<len;j++){
-        y_pred[j]=y_pred[j]-key[j];
-        // printf("%lf, ", y_pred[j]);
-    }
-    // for(j=0;j<classes;j++){
-    //     printf("%lf, ", y_pred[j]);
+        y_hat[j] = tmp[j] + y_pred[insert*len+j];
+    }// x = x_ + xNe
+    
+    softmax_e(y_hat, shape, 0);
+    // for(j=0;j<Ne;j++){
+    //     printf("%.4lf, ", y_hat[j]);
     // }
     // printf("\n");
-
-    double res = cross_entropy(y_true, y_pred, len, classes, shape);
+    double res = cross_entropy(y_true, y_hat, len, classes, shape);
+    // printf("loss: %.4lf\n", res);
     result[0] = res;
-    // printf("%lf", res);
-    free(key);
+    free(tmp);
+    free(y_hat);
     return;
 }
 }

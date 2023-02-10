@@ -1,19 +1,15 @@
 from torch import nn
-from op_enc2.ReLU import ReLU
-from op_enc2.Sigmoid import Sigmoid
-from op_enc2.Dropout import Dropout
-from op_enc2.MaxPool2d import MaxPool2d
-from op_enc2.Softmax import Softmax
-from op_enc2.BatchNorm2d import BatchNorm
-
-
+from op.ReLU import ReLU
+from op.MaxPool2d import MaxPool2d
+from op.BatchNorm2d import BatchNorm
+from op.Dropout import Dropout
+from op.Softmax import Softmax
 def _set_module(model, submodule_key, module):
     tokens = submodule_key.split('.')
     sub_tokens = tokens[:-1]
     cur_mod = model
     for s in sub_tokens:
         cur_mod = getattr(cur_mod, s)
-
     setattr(cur_mod, tokens[-1], module)
 
 
@@ -32,14 +28,18 @@ def register_op(model):
             elif isinstance(module, nn.ReLU):
                 relu = ReLU(inplace=module.inplace)
                 _set_module(model, name, relu)
-            elif isinstance(module, nn.Sigmoid):
-                sigmoid = Sigmoid()
-                _set_module(model, name, sigmoid)
             elif isinstance(module, nn.Softmax):
-                softmax = Softmax(dim=module.dim)
+                softmax = Softmax()
                 _set_module(model, name, softmax)
             elif isinstance(module, nn.BatchNorm2d):
                 channel = module.num_features
-                bn = BatchNorm(channel, affine=True)
-                _set_module(model, name, bn)
+                bn_ = BatchNorm(channel, training=True)
+                _set_module(model, name, bn_)
+            elif isinstance(module, nn.Linear):
+                linear = nn.Linear(module.in_features, module.out_features, bias=False)
+                _set_module(model, name, linear)
+            elif isinstance(module, nn.Conv2d):
+                conv = nn.Conv2d(module.in_channels, module.out_channels, kernel_size=module.kernel_size, stride=\
+                    module.stride, padding=module.padding, bias=False)
+                _set_module(model, name, conv)
     return model

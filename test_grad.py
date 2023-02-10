@@ -1,3 +1,4 @@
+#这个python文件用来验证自定义op batchnorm的梯度正确与否
 from op_nn.BatchNorm2d import BatchNorm
 import torch
 class Hook():

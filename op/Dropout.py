@@ -4,7 +4,8 @@ from torch import Tensor
 import numpy as np
 import torch.nn as nn
 from preprocess import getdll, preprocess
-
+from globals import global_param
+num_segments = global_param.num_segmentation
 forward, backward = getdll()
 
 
@@ -27,55 +28,55 @@ class _DropoutNd(nn.Module):
 
 class DropoutFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, input: Tensor, p: float, delta1, delta2) -> Tensor:
+    def forward(ctx, input: Tensor, p: float) -> Tensor:
         # print('************dropout************')
         shape_x, x, len_x, double_array_x = preprocess(input)
-        shape_fr, delta1_c, len_r, float_array_delta1 = preprocess(delta1)
-        shape_delta2, delta2_c, len_del, float_array_delta2 = preprocess(delta2)
-        tmp = torch.randn(input.shape)
-        shape_res, res, len_res, float_array_res = preprocess(tmp)
-        len_c = c_int(len_x)
-        shape_x = list(shape_x)
+        res = torch.rand_like(input)
+        shape_res, res_c, len_res, double_array_res = preprocess(res)
+        N,C,H,W = shape_x[0] // num_segments, shape_x[1], shape_x[2], shape_x[3]
+        shape_real = torch.Size([N,C,H,W])
+        len_ = N*C*H*W
+        len_c = c_int(len_)
         int_array = c_int * 4
-        shape = int_array(*shape_x)
+        shape_c = int_array(*shape_real)
         p_c = c_double(p)
-        forward.ecall_dropout.argtypes = (double_array_x, float_array_delta1, c_int, float_array_res ,c_double, int_array, float_array_delta2)
-        forward.ecall_dropout(x, delta1_c, len_c, res, p_c, shape, delta2_c)
-        result = np.frombuffer(res, dtype=np.double)
+        forward.ecall_dropout.argtypes = (double_array_x, c_int, c_double, int_array, double_array_res)
+        forward.ecall_dropout(x, len_c, p_c, shape_c, res_c)
+        result = np.frombuffer(res_c, dtype=np.double)
         result = torch.tensor(result, dtype=torch.float)
         result = result.reshape(*shape_x)
         # print('result of dropout:{}'.format(result))
         ctx.p = p
-        ctx.save_for_backward(result, delta1, delta2)
+        ctx.save_for_backward(result)
         return result
 
     @staticmethod
     def backward(ctx, gradOutput):
-        # print('************dropout_backward************')
-        output, delta1, delta2 = ctx.saved_tensors
+        print('************dropout_backward************')
+        print(gradOutput.max().item())
+        output, = ctx.saved_tensors
+        result = torch.rand_like(output)
         p = ctx.p
         shape_dy, dy, len_dy, double_array_dy = preprocess(gradOutput)
-        shape_out, out, len_out, double_array_out = preprocess(output)
-        shape_del2, delta2_c, len_del, double_array_del = preprocess(delta2)
-        result = torch.randn(shape_out)
-        shape_output, result, len_output, double_array_output = preprocess(result)
-        shape_out = list(shape_out)
+        shape_y, out, len_out, double_array_out = preprocess(output)
+        shape_output, result_c, len_output, double_array_output = preprocess(result)
+        N,C,H,W = shape_y[0] // num_segments, shape_y[1], shape_y[2], shape_y[3]
+        shape_real = torch.Size([N,C,H,W])
         int_array = c_int * 4
-        shape = int_array(*shape_out)
+        shape_c = int_array(*shape_real)
         # print(shape_out)
-        len = shape_out[0] * shape_out[1] * shape_out[2] * shape_out[3]
-        len_c = c_int(len)
+        len_ = N*C*H*W
+        len_c = c_int(len_)
         p = c_double(p)
-        backward.d_dropout.argtypes = (double_array_dy, double_array_out, c_int, c_double, int_array, double_array_output, double_array_del)
-        backward.d_dropout(dy, out, len_c, p, shape, result, delta2_c)
-        gradout = np.frombuffer(result, dtype=np.double)
+        backward.d_dropout.argtypes = (double_array_dy, double_array_out, c_int, c_double, int_array, double_array_output)
+        backward.d_dropout(dy, out, len_c, p, shape_c, result_c)
+        gradout = np.frombuffer(result_c, dtype=np.double)
         gradout = torch.tensor(gradout, dtype=torch.float)
-        gradout = gradout.reshape(*shape_out)
-        # need gradOutput * gradout ?
-        return gradout, None, None, None
+        gradout = gradout.reshape(*shape_dy)
+        return gradout, None
 
 
 class Dropout(_DropoutNd):
 
-    def forward(self, input: Tensor,delta1: Tensor, delta2: Tensor) -> Tensor:
-        return DropoutFunction.apply(input, self.p, delta1, delta2)
+    def forward(self, input: Tensor) -> Tensor:
+        return DropoutFunction.apply(input, self.p)
